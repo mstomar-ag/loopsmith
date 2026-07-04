@@ -11,8 +11,9 @@ straight to code. Then queue a backlog and let it **run autonomously**: each goa
 Start from an existing repo **or** a product vision; LoopSmith grounds the work in your strategy and
 remembers what it learns in a **self-improving knowledge graph**.
 
-> **One promise: best-quality output, minimum effort.** Zero runtime deps (bash + python3 stdlib);
-> the `superpowers` + `code-review` companions auto-install.
+> **One promise: best-quality output, minimum effort.** Zero runtime deps (bash + python3 stdlib); the
+> `superpowers` + `code-review` companions auto-install on Claude but are **optional** — portable
+> executors run the same phases on any host.
 
 ---
 
@@ -75,8 +76,9 @@ git clone <git-url> && cd loopsmith && ./install.sh
 ```
 
 `install.sh` copies the spine into `~/.claude/skills/loopsmith/` and **prints** the `settings.json`
-`UserPromptSubmit` hook snippet for you to paste (it never edits your settings). Then install the
-`superpowers` + `code-review` companions yourself to get the phase-execution skills.
+`UserPromptSubmit` hook snippet for you to paste (it never edits your settings). Optionally install the
+`superpowers` + `code-review` companions for the best per-phase execution — without them, the portable
+`sdlc-*` executors run the phases.
 
 ## Cursor adapter (experimental)
 
@@ -129,10 +131,11 @@ flowchart TB
     PROMPT(["Prompt / queued goal"]) --> HOOK["Always-on intent hook"]
     HOOK --> ORCH["Orchestrator<br/>/sdlc-goal (interactive) · /sdlc-loop (autonomous)"]
     ORCH --> SPINE["7-phase SDLC spine<br/>two gates: Plan-Review + Strategy-Alignment"]
+    ORCH -.->|"model_selection: auto"| MDL["Model per goal<br/>haiku · sonnet · opus · fable"]
     SPINE --> OUT(["Verified change + audit trail"])
     SPINE <--> SRC["Backlog source<br/>local files · GitHub issues · Projects board"]
     SPINE <--> KG["Self-improving KG (optional)<br/>write · recall · track→prune→fill gaps"]
-    SPINE -.->|"executes each phase via"| COMP["Companions<br/>superpowers + code-review"]
+    SPINE -.->|"each phase via an executor"| COMP["Companion on Claude<br/>(superpowers / code-review)<br/>· else portable sdlc-* executor"]
 ```
 
 ### How a prompt falls through the phases
@@ -179,25 +182,30 @@ flowchart TD
 
 ## The seven phases
 
+Each phase runs via an **executor**, resolved per host: on Claude with the companion installed, the
+`superpowers` / `code-review` skill; otherwise LoopSmith's **portable `sdlc-*` executor** — each with a
+committed [parity review](docs/executor-parity/) showing it's at-par-or-better. Phase 4 is always
+LoopSmith's own; no companion ships it.
+
 1. **Goal** — restate the objective as one concrete, checkable goal. For feature/creative work, this
    is where you explore intent and requirements first.
-   → *runs via* `superpowers:brainstorming`.
+   → *executor:* `superpowers:brainstorming` · portable `sdlc-brainstorm`.
 2. **Research** — map the blast radius: affected files, existing patterns, constraints, prior art.
    → *agent practice; no dedicated skill.*
 3. **Plan** — write the plan: steps, files, tests, and a definition-of-done. Size it against real
    throughput with **`/sdlc-velocity`** (measured git pace), not "this feels like weeks."
-   → *runs via* `superpowers:writing-plans`.
+   → *executor:* `superpowers:writing-plans` · portable `sdlc-plan`.
 4. **Plan-Review** — adversarially review the plan **before** any edit: verify each claim against the
    real code, stress-test what breaks after it ships, check scope/fit, and (vision-first) check it
    against your strategy. Never skipped. This is the gate `superpowers` doesn't provide, so LoopSmith
    ships it.
-   → *owned by* **`sdlc-plan-review`** (ships with LoopSmith).
+   → *owned by* **`sdlc-plan-review`** (always LoopSmith's — no companion equivalent).
 5. **Implement** — build test-first and execute the plan step by step.
-   → *runs via* `superpowers:test-driven-development` + `superpowers:executing-plans`.
+   → *executor:* `superpowers:test-driven-development` + `executing-plans` · portable `sdlc-implement`.
 6. **Review** — code-review the diff for real findings, then verify every claim with evidence before
    declaring anything done.
-   → *runs via* `code-review` (`/code-review`) + `superpowers:requesting-code-review` +
-   `superpowers:verification-before-completion`.
+   → *executor:* `code-review` + `superpowers:requesting-code-review` + `verification-before-completion`
+   · portable `sdlc-review` + `sdlc-verify`.
 7. **Retrospective** — capture lessons; lock the critical insights so the next loop is better.
    → *agent practice; no dedicated skill.*
 
@@ -287,6 +295,18 @@ review queue needs attention.
 | Approval | every gate | only what it parks |
 | Stops on | goal complete / you stop | backlog empty or per-run budget |
 | Irreversible action | asks you | always parks — never runs it |
+
+---
+
+## Match the model to the goal (optional)
+
+A one-line rename doesn't need Opus; a schema migration shouldn't run on Haiku. Set
+**`model_selection: auto`** in `.sdlc/config.json` and `/sdlc-loop` **predicts a tier per goal** —
+`haiku · sonnet · opus · fable` — from the goal text (deterministic regex, zero-dep), then runs that
+goal's phases at it inside a subagent (the session can't switch its own model). Conflicts resolve
+**upward**, so a hard goal is never under-powered. Off by default; run **`/sdlc-model "<goal>"`** any
+time to see the recommended tier. `/sdlc-goal` (interactive) surfaces the tier as advice rather than
+auto-switching.
 
 ---
 
@@ -445,8 +465,9 @@ history stays a query away. The full closed loop: **record** (issues / journey) 
 
 ## Dependencies (auto-installed companions)
 
-LoopSmith ships the *spine*; the *execution muscle* for Phases 1, 3, 5, and 6 lives in two companion
-plugins it now declares as native dependencies:
+LoopSmith ships the *spine*; the *execution muscle* for Phases 1, 3, 5, and 6 can come from two
+companion plugins it declares as native dependencies (optional premiums — the
+[portable executors](#the-seven-phases) run the same phases without them):
 
 - **`superpowers`** — `brainstorming`, `writing-plans`, `test-driven-development`, `executing-plans`,
   `requesting-code-review`, `verification-before-completion`.
@@ -474,10 +495,11 @@ order of convenience:
    then `/reload-plugins`.
 3. If a companion is merely disabled, enable it.
 
-**Graceful degradation:** even with the companions absent, the always-on hook still injects the
-7-phase policy and the phase *names* guide the work — LoopSmith **degrades, it does not break**. The
-named superpowers/code-review skills are how each phase is executed *best*, not a hard runtime
-requirement of the spine. (Ref: [plugin dependencies](https://code.claude.com/docs/en/plugin-dependencies).)
+**Graceful degradation:** even with the companions absent, LoopSmith runs the same phases via its
+**portable `sdlc-*` executors** (each with a committed [parity review](docs/executor-parity/)) and the
+always-on hook still injects the 7-phase policy — LoopSmith **degrades, it does not break**. The
+companions are how each phase runs *best on Claude*, not a hard runtime requirement of the spine.
+(Ref: [plugin dependencies](https://code.claude.com/docs/en/plugin-dependencies).)
 
 ## Status (honest)
 
@@ -509,8 +531,8 @@ catch drift (see [`evals/README.md`](evals/README.md)):
   default local source stays zero-dep.
 - **Knowledge graph (optional):** the graph builder — default `graphify` (`pip install graphifyy`);
   off unless `knowledge_graph.enabled` is set.
-- **Companions:** `superpowers` + `code-review` (auto-installed via the plugin path; manual on the
-  fallback path).
+- **Companions (optional):** `superpowers` + `code-review` — auto-installed on the plugin path, manual
+  on the fallback path; **absent, the parity-reviewed portable `sdlc-*` executors run the phases**.
 - **Dev/test:** `pip install pytest pytest-cov`, then `pytest tests/ -v`. **CI** (GitHub Actions) runs
   the full suite — including the **leakage gate**, the **hook behavioral-spec**, and the **Tier-1
   quality gate** (`evals/run.py`) — with an **85% coverage floor** on every push/PR, on Python 3.10 + 3.12.
