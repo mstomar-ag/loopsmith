@@ -191,6 +191,13 @@ In short: superpowers is *muscle* for four of the phases; LoopSmith is the **spi
 autonomous engine** that drives a whole backlog through all seven — and it names superpowers as a
 recommended companion, not a hard dependency.
 
+**Even the muscle is now optional.** LoopSmith ships **portable executors** — `sdlc-brainstorm` (Goal),
+`sdlc-plan` (Plan), `sdlc-implement` (Implement), `sdlc-review` + `sdlc-verify` (Review) — each with a
+committed [parity review](docs/executor-parity/) showing it's at-par-or-better vs its superpowers/
+code-review counterpart. Each carries a resolution header: **on Claude with the companion installed, the
+companion runs; otherwise the portable executor does** (`companions: auto` in config; `/sdlc-doctor`
+detects them). So superpowers/code-review are *optional premiums* — LoopSmith runs fully on any host.
+
 ---
 
 ## Two ways to start: drop-in or vision-first
