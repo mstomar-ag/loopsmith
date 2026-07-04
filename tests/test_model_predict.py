@@ -54,3 +54,36 @@ def test_main_reads_text_and_file(tmp_path):
     f = tmp_path / "goal.md"; f.write_text("fix a typo")
     assert m.main(["predict.py", str(f)]) == 0
     assert m.main(["predict.py"]) == 2   # usage
+
+
+def _sdlc(tmp_path, model_selection):
+    import json
+    base = tmp_path / ".sdlc"; base.mkdir(exist_ok=True)   # same tmp_path reused across calls in a test
+    (base / "config.json").write_text(json.dumps({"model_selection": model_selection}))
+    return str(base)
+
+
+def test_resolve_gates_on_config(tmp_path):
+    """resolve() returns a tier only under model_selection:auto — the loop stays unchanged when off."""
+    m = _mod()
+    assert m.resolve("migrate the schema", _sdlc(tmp_path, "auto")) == "opus"
+    assert m.resolve("migrate the schema", _sdlc(tmp_path, "off")) is None
+    assert m.resolve("migrate the schema", str(tmp_path / "missing")) is None   # no config → off
+
+
+def test_resolve_cli_prints_off_when_disabled(tmp_path, capsys):
+    m = _mod()
+    m.main(["predict.py", "resolve", "add a retry", _sdlc(tmp_path, "off")])
+    assert capsys.readouterr().out.strip() == "off"
+    m.main(["predict.py", "resolve", "migrate the db", _sdlc(tmp_path, "auto")])
+    assert capsys.readouterr().out.strip() == "opus"
+
+
+def test_orchestrators_wire_model_selection():
+    """The loop must call the resolver + dispatch a subagent; goal must surface it — so a refactor
+    can't silently drop the wiring."""
+    sk = pathlib.Path(__file__).resolve().parent.parent / "skills"
+    loop = (sk / "sdlc-loop" / "SKILL.md").read_text()
+    goal = (sk / "sdlc-goal" / "SKILL.md").read_text()
+    assert "predict.py" in loop and "resolve" in loop and "subagent" in loop
+    assert "predict.py" in goal and "model_selection" in goal

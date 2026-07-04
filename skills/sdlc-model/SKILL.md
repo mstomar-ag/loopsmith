@@ -33,9 +33,17 @@ over-powering a trivial one.
 
 `.sdlc/config.json` → `model_selection`:
 - `"off"` (default) — phases run at the session's model, unchanged.
-- `"auto"` — the loop predicts the tier from each goal and runs that goal's phases at it.
+- `"auto"` — `/sdlc-loop` predicts a tier per goal and runs that goal's phases at it.
 
-**Why phases, not the session:** the main session cannot switch its own model mid-run, but a phase run
-as a **subagent** can take a `model` override. So under `auto`, `/sdlc-loop` and `/sdlc-goal` dispatch
-each phase as a subagent at the predicted tier. (Absent that host capability, the recommendation above
-still guides — turn `model_selection` to `off` and it's a no-op.)
+The loop resolves the tier with:
+
+```bash
+python3 "${CLAUDE_SKILL_DIR}/scripts/predict.py" resolve "<goal>" .sdlc   # prints a tier, or "off"
+```
+
+**Why a subagent, one tier per goal:** the main session cannot switch its own model mid-run, but work
+run as a **subagent** can take a `model` override. So under `auto`, `/sdlc-loop` runs the whole goal's
+phases inside one subagent at the predicted tier (the design: "the rest of the steps run with that
+model"). `/sdlc-goal` (interactive) only **surfaces** the recommendation — per-gate approval doesn't
+compose with burying the goal in a subagent. Off-Claude, or with `model_selection: off`, `resolve`
+prints `off` and everything runs inline — a clean no-op.

@@ -33,14 +33,33 @@ def predict(goal_text):
     return _DEFAULT
 
 
-def main(argv):
-    if len(argv) < 2:
-        print("usage: predict.py '<goal text>' | <goal-file>", file=sys.stderr)
-        return 2
-    arg = argv[1]
+def resolve(goal_text, sdlc_dir=".sdlc"):
+    """The tier to run this goal's phases at, honoring config. Returns a tier only when
+    `model_selection` is 'auto'; otherwise None (→ run at the session model, unchanged)."""
+    import json
+    try:
+        cfg = json.loads((pathlib.Path(sdlc_dir) / "config.json").read_text())
+    except Exception:
+        cfg = {}
+    if (cfg.get("model_selection") or "off") != "auto":
+        return None
+    return predict(goal_text)
+
+
+def _read(arg):
     p = pathlib.Path(arg)
-    text = p.read_text(encoding="utf-8", errors="ignore") if p.exists() else arg
-    print(predict(text))
+    return p.read_text(encoding="utf-8", errors="ignore") if p.exists() else arg
+
+
+def main(argv):
+    # resolve: config-gated tier for the loop ("off" when model_selection isn't auto)
+    if len(argv) >= 3 and argv[1] == "resolve":
+        print(resolve(_read(argv[2]), argv[3] if len(argv) > 3 else ".sdlc") or "off")
+        return 0
+    if len(argv) < 2 or argv[1] == "resolve":
+        print("usage: predict.py '<goal>' | resolve '<goal>' [sdlc_dir]", file=sys.stderr)
+        return 2
+    print(predict(_read(argv[1])))
     return 0
 
 
