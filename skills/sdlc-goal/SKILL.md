@@ -12,8 +12,12 @@ counterpart to the autonomous `/sdlc-loop`).
 1. Identify the goal: a path under `.sdlc/goals/` (preferred — so it's tracked) or inline text the
    user gives. If inline, offer to save it as the next `.sdlc/goals/NNNN-*.md`.
 2. **Recall first** — if the knowledge graph is enabled, run the `sdlc-context` pre-flight to assemble
-   a cited brief from the graph + past issues + conventions (no-op when the KG is off). Then drive the
-   phases, pausing for the user at each gate:
+   a cited brief from the graph + past issues + conventions (no-op when the KG is off). If
+   `model_selection` is `auto`, also surface the recommended tier — `python3
+   "${CLAUDE_SKILL_DIR}/../sdlc-model/scripts/predict.py" resolve "<goal>" .sdlc` — so you and the user
+   know the intended model. (Interactive per-gate approval doesn't compose with running the whole goal
+   in one subagent, so the automatic per-goal model switch is a `/sdlc-loop` feature; here it's advisory.)
+   Then drive the phases, pausing for the user at each gate:
    **Goal** (restate) → **Research** (blast radius) → **Plan** → **Plan-Review** (use the
    `sdlc-plan-review` skill — never skip) → **Implement** (test-first) → **Review** (evidence before
    "done"). Each phase runs via its **executor**: on Claude with the companion installed, the
