@@ -456,6 +456,20 @@ requirement of the spine. (Ref: [plugin dependencies](https://code.claude.com/do
 LoopSmith is **Claude Code only.** The core is plain markdown + shell, structured to be host-portable,
 but a second-host (Codex/etc.) adapter is not yet shipped.
 
+## Quality & drift (`evals/`)
+
+The kit's "output" is agent *behavior*, so quality is guarded in two tiers, re-run on every change to
+catch drift (see [`evals/README.md`](evals/README.md)):
+
+- **Tier 1 — deterministic behavioral gate (free, in CI):** `python3 evals/run.py` runs the intent hook
+  over a behavioral corpus (`evals/fixtures.json`) — a deterministic proxy for *"the agent got the right
+  discipline signal"* — scores it, and **fails the build if the score drops below `evals/baseline.json`.**
+  That drop is the drift signal.
+- **Tier 2 — LLM-judge behavioral evals (opt-in, parked):** run the agent on each fixture goal and have
+  an LLM judge score the transcript against its rubric. The runner + injectable `agent`/`judge` seam are
+  built and tested; the real LLM wiring is withheld until the API budget is greenlit, so `--live` prints
+  a parked notice instead of spending.
+
 ## Requirements
 
 - **Runtime:** bash + python3 (stdlib) — zero dependencies. The optional **GitHub backlog source**
@@ -466,8 +480,8 @@ but a second-host (Codex/etc.) adapter is not yet shipped.
 - **Companions:** `superpowers` + `code-review` (auto-installed via the plugin path; manual on the
   fallback path).
 - **Dev/test:** `pip install pytest pytest-cov`, then `pytest tests/ -v`. **CI** (GitHub Actions) runs
-  the full suite — including the **leakage gate** and the **hook behavioral-spec** — with an **85%
-  coverage floor** on every push/PR, on Python 3.10 + 3.12.
+  the full suite — including the **leakage gate**, the **hook behavioral-spec**, and the **Tier-1
+  quality gate** (`evals/run.py`) — with an **85% coverage floor** on every push/PR, on Python 3.10 + 3.12.
 
 ## Credits & acknowledgements
 
