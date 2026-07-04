@@ -64,14 +64,21 @@ def test_doctor_skill_wellformed():
     assert "never run an interactive login" in t.lower() or "hand them the command" in t.lower()
 
 
-def test_verify_executor_is_portable_with_parity_review():
-    t = (ROOT / "skills" / "sdlc-verify" / "SKILL.md").read_text()
-    assert "name: sdlc-verify" in t
-    assert "superpowers:verification-before-completion" in t   # resolution header prefers superpowers on Claude
-    assert "evidence before" in t.lower()                      # the core discipline
-    # the parity review (ours vs superpowers) is committed as evidence — quality >= par
-    parity = (ROOT / "docs" / "executor-parity" / "verify.md").read_text()
-    assert "superpowers" in parity and "sdlc-verify" in parity and "par" in parity.lower()
+# Each portable executor must (1) defer to its superpowers companion on Claude via a resolution header,
+# and (2) ship a committed parity review vs superpowers asserting >= par. Add a row as each lands.
+PORTABLE_EXECUTORS = {
+    "sdlc-verify": ("verification-before-completion", "verify.md"),
+    "sdlc-implement": ("test-driven-development", "implement.md"),
+}
+
+
+def test_portable_executors_defer_to_superpowers_and_have_parity():
+    for skill, (sp, doc) in PORTABLE_EXECUTORS.items():
+        t = (ROOT / "skills" / skill / "SKILL.md").read_text()
+        assert f"name: {skill}" in t
+        assert f"superpowers:{sp}" in t, f"{skill}: no resolution header deferring to superpowers on Claude"
+        parity = (ROOT / "docs" / "executor-parity" / doc).read_text()
+        assert skill in parity and "par" in parity.lower(), f"{doc}: missing parity verdict"
 
 
 def test_versions_aligned():
