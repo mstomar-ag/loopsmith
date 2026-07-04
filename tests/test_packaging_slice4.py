@@ -71,6 +71,7 @@ PORTABLE_EXECUTORS = {
     "sdlc-implement": ("test-driven-development", "implement.md"),
     "sdlc-plan": ("writing-plans", "plan.md"),
     "sdlc-brainstorm": ("brainstorming", "brainstorm.md"),
+    "sdlc-review": ("requesting-code-review", "review.md"),
 }
 
 
