@@ -19,9 +19,18 @@ action?); track scores over time and fail on a drop below baseline.
   behind `--live` + an API key, and run it nightly / pre-release — not per-PR (cost + non-determinism).
   See [`evals/README.md`](evals/README.md) for the two-tier design.
 
+## Verify the Cursor adapter in a live session — before claiming Cursor support
+
+`sdlc-init --cursor` scaffolds `.cursor/rules/sdlc.mdc` + pins `companions: off`, and this is
+unit-tested — but LoopSmith has **not been run end-to-end inside Cursor.** Until it is, the README
+marks Cursor **experimental** and makes no working-support claim. To close this: open a real Cursor
+project, run the `--cursor` scaffold, confirm the `.mdc` rule actually loads as always-applied context
+and the agent follows the spine + runs the portable executors + the `python3` helpers. Then drop the
+"experimental" caveats.
+
 ## Other deferred (see the roadmap for context)
 
 - **research-radar Phase B/C** — findings → gap log → the loop fills them; opt-in guard-railed GitHub
   filing. Deferred until the dry-run digest (`/sdlc-radar`) proves useful.
-- **Second-host adapters beyond Cursor** — the portable executors + `sdlc-init --cursor` prove the
-  pattern; a Codex/other adapter can follow the same shape (a host rules file + `companions: off`).
+- **Second-host adapters beyond Cursor** — once Cursor is verified, a Codex/other adapter can follow
+  the same shape (a host rules file + `companions: off`).
