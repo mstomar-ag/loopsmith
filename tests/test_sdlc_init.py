@@ -191,6 +191,39 @@ def test_scaffold_vision_idempotent_preserves_edits():
         assert mod.scaffold_vision(tmp) is False and ns.read_text() == "MY VISION"
 
 
+def test_cursor_flag_scaffolds_always_apply_rule():
+    mod = _load()
+    with tempfile.TemporaryDirectory() as tmp:
+        assert mod.main(["sdlc_init.py", tmp, "--cursor"]) == 0
+        rule = pathlib.Path(tmp) / ".cursor" / "rules" / "sdlc.mdc"
+        assert rule.exists()
+        t = rule.read_text()
+        assert "alwaysApply: true" in t                       # Cursor's hook analog: always in context
+        for phase in ("Goal", "Research", "Plan-Review", "Implement", "Review", "Retrospective"):
+            assert phase in t, f"cursor rule missing {phase}"
+        assert "irreversible" in t and "portable" in t.lower()
+        # companions pinned off so the portable executors run without a failing companion probe
+        cfg = json.loads((pathlib.Path(tmp) / ".sdlc" / "config.json").read_text())
+        assert cfg["companions"] == "off"
+
+
+def test_no_cursor_flag_stays_host_default():
+    mod = _load()
+    with tempfile.TemporaryDirectory() as tmp:
+        mod.main(["sdlc_init.py", tmp])
+        assert not (pathlib.Path(tmp) / ".cursor").exists()   # opt-in only
+        cfg = json.loads((pathlib.Path(tmp) / ".sdlc" / "config.json").read_text())
+        assert cfg["companions"] == "auto"                     # untouched default (Claude path)
+
+
+def test_scaffold_cursor_idempotent_preserves_edits():
+    mod = _load()
+    with tempfile.TemporaryDirectory() as tmp:
+        assert mod.scaffold_cursor(tmp) is True
+        rule = pathlib.Path(tmp) / ".cursor" / "rules" / "sdlc.mdc"; rule.write_text("MY RULES")
+        assert mod.scaffold_cursor(tmp) is False and rule.read_text() == "MY RULES"   # never clobbered
+
+
 def test_main_errors_on_missing_target():
     mod = _load()
     assert mod.main(["sdlc_init.py", "/no/such/dir/really"]) == 1
