@@ -21,7 +21,9 @@ Then repeat until the helper says stop:
    pre-flight to pull a cited brief from the graph + past issues + conventions, so the goal starts
    informed by history instead of a flushed window (no-op when the KG is off). Then read the goal and
    run it through the full SDLC (research → plan → plan-review →
-   implement → review). `$goal` is a **file path** in local mode (read the file) or a **GitHub issue
+   implement → review) — each phase via its **executor** (the `superpowers`/`code-review` companion on
+   Claude if installed, else LoopSmith's portable `sdlc-brainstorm`/`sdlc-plan`/`sdlc-implement`/
+   `sdlc-review`/`sdlc-verify`; each skill's resolution header picks). `$goal` is a **file path** in local mode (read the file) or a **GitHub issue
    number** in github mode (`gh issue view "$goal"` to read it). **Park instead of forcing through**
    if you hit any of:
    - a hard checkpoint / a decision only the user can make,

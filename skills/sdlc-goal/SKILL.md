@@ -16,7 +16,10 @@ counterpart to the autonomous `/sdlc-loop`).
    phases, pausing for the user at each gate:
    **Goal** (restate) → **Research** (blast radius) → **Plan** → **Plan-Review** (use the
    `sdlc-plan-review` skill — never skip) → **Implement** (test-first) → **Review** (evidence before
-   "done"). Use `superpowers:*` skills where installed.
+   "done"). Each phase runs via its **executor**: on Claude with the companion installed, the
+   `superpowers` / `code-review` skill; otherwise LoopSmith's **portable executor** (`sdlc-brainstorm`
+   → Goal, `sdlc-plan` → Plan, `sdlc-implement` → Implement, `sdlc-review` + `sdlc-verify` → Review).
+   Each executor's resolution header encodes this — so it works on any host.
    Record each phase as you go — `python3 "${CLAUDE_SKILL_DIR}/../sdlc-loop/scripts/loop.py" note .sdlc
    "<goal>" "<phase>: <findings / decisions>"` (and 🔒 Critical Insights for key decisions) — so the
    issue timeline (github mode) or `.sdlc/journey/` (local) holds the audit trail.

@@ -52,6 +52,14 @@ def check(sdlc_dir=".sdlc", run=None):
     if ns.exists():
         filled = "<the change you want" not in ns.read_text(encoding="utf-8")
         out.append(_chk("north-star filled", filled, "run /sdlc-vision to fill the tiers"))
+
+    # companions (optional): superpowers + code-review power phases 1/3/5/6 when present; LoopSmith's
+    # portable sdlc-* executors are the absent-safe fallback everywhere else — absent is never a failure.
+    if (cfg.get("companions") or "auto") != "off":
+        plugins = run(["claude", "plugin", "list"]) or ""
+        for comp in ("superpowers", "code-review"):
+            here = comp in plugins
+            out.append(_chk(f"{comp}: {'present' if here else 'absent — portable executor used'}", True, ""))
     return out
 
 

@@ -73,3 +73,16 @@ def test_main_runs():
     with tempfile.TemporaryDirectory() as t:
         base = _sdlc(t, {"discovery": {"source": "local-goals"}})
         assert d.main(["doctor.py", "check", base]) == 0
+
+
+def test_detects_companions_never_failing_on_absence():
+    d = _doc()
+    with tempfile.TemporaryDirectory() as t:
+        base = _sdlc(t, {"discovery": {"source": "local-goals"}})
+        def run(args):
+            return "superpowers@claude-plugins-official" if args == ["claude", "plugin", "list"] else _runner()(args)
+        checks = d.check(base, run=run)
+        names = " | ".join(c["name"] for c in checks)
+        assert "superpowers: present" in names            # detected installed
+        assert "code-review: absent" in names             # detected missing
+        assert all(c["ok"] for c in checks if "superpowers" in c["name"] or "code-review" in c["name"])
