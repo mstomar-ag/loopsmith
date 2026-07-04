@@ -69,6 +69,7 @@ def test_doctor_skill_wellformed():
 PORTABLE_EXECUTORS = {
     "sdlc-verify": ("verification-before-completion", "verify.md"),
     "sdlc-implement": ("test-driven-development", "implement.md"),
+    "sdlc-plan": ("writing-plans", "plan.md"),
 }
 
 
