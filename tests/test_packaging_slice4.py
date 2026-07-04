@@ -64,6 +64,16 @@ def test_doctor_skill_wellformed():
     assert "never run an interactive login" in t.lower() or "hand them the command" in t.lower()
 
 
+def test_verify_executor_is_portable_with_parity_review():
+    t = (ROOT / "skills" / "sdlc-verify" / "SKILL.md").read_text()
+    assert "name: sdlc-verify" in t
+    assert "superpowers:verification-before-completion" in t   # resolution header prefers superpowers on Claude
+    assert "evidence before" in t.lower()                      # the core discipline
+    # the parity review (ours vs superpowers) is committed as evidence — quality >= par
+    parity = (ROOT / "docs" / "executor-parity" / "verify.md").read_text()
+    assert "superpowers" in parity and "sdlc-verify" in parity and "par" in parity.lower()
+
+
 def test_versions_aligned():
     p = json.loads((ROOT / ".claude-plugin" / "plugin.json").read_text())
     mk = json.loads((ROOT / ".claude-plugin" / "marketplace.json").read_text())
