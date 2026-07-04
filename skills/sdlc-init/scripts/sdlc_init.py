@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Deterministic, idempotent scaffolder for the per-project .sdlc/ layer.
 Copies templates/**/<x>.tmpl -> <target>/.sdlc/<x>, skip-if-exists. Zero deps."""
-import sys, pathlib
+import sys, json, pathlib
 
 # script is at skills/sdlc-init/scripts/sdlc_init.py; templates sit beside scripts/
 TEMPLATES = pathlib.Path(__file__).resolve().parent.parent / "templates"
@@ -88,6 +88,56 @@ def scaffold_vision(target_dir):
     return True
 
 
+_CURSOR_RULE = """---
+description: Goal-Based SDLC - standing discipline for every change (LoopSmith)
+globs:
+alwaysApply: true
+---
+
+# Goal-Based SDLC (LoopSmith)
+
+Cursor has no UserPromptSubmit hook, so this always-applied rule is the standing policy. For any
+non-trivial or implementation task, do NOT jump straight to coding - follow the phases and state which
+one you are on:
+
+1. **Goal** - restate the objective as one concrete, checkable goal.
+2. **Research** - blast radius: affected files, existing patterns, constraints.
+3. **Plan** - steps, files, tests, definition-of-done.
+4. **Plan-Review** - adversarially review the plan BEFORE implementing. Never skip.
+5. **Implement** - test-first (red -> green -> refactor); minimal code to pass.
+6. **Review** - evidence before claims: run the checks, paste the output; a KPI + qualitative scan.
+7. **Retrospective** - capture lessons.
+
+**Intent-aware:** trivial / conversational / read-only requests may be answered directly - but say so
+explicitly. The moment it turns into a code change, switch to the spine.
+
+**Never run an irreversible or expensive action** (deploy, delete, overwrite, spend, migrate)
+unattended - stop and ask.
+
+**Executors (portable):** this host has no `superpowers` / `code-review` companion, so each phase runs
+via LoopSmith's portable executor - the disciplines in `skills/sdlc-*/SKILL.md` (`sdlc-brainstorm` ->
+Goal, `sdlc-plan` -> Plan, `sdlc-implement` -> Implement, `sdlc-review` + `sdlc-verify` -> Review).
+Same discipline as the Claude companions, portable.
+
+**Backlog + helpers (optional):** the loop, model-selection, status and KG helpers are plain, zero-dep
+`python3` - run them from your LoopSmith checkout via Cursor's terminal, e.g.
+`python3 <loopsmith>/skills/sdlc-loop/scripts/loop.py next .sdlc` or
+`python3 <loopsmith>/skills/sdlc-model/scripts/predict.py "<goal>"`.
+"""
+
+
+def scaffold_cursor(target_dir):
+    """Scaffold the Cursor host adapter: an always-apply rule at .cursor/rules/sdlc.mdc carrying the
+    SDLC discipline (Cursor's analog of the Claude UserPromptSubmit hook). Opt-in via --cursor,
+    skip-if-exists. Returns True if written, False if present."""
+    dest = pathlib.Path(target_dir) / ".cursor" / "rules" / "sdlc.mdc"
+    if dest.exists():
+        return False
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.write_text(_CURSOR_RULE, encoding="utf-8")
+    return True
+
+
 def scaffold_github(target_dir):
     """Materialize the GitHub PM scaffolding (issue templates, auto-add workflow, label rule, the
     critical-insight template) into <target>/.github/, skip-if-exists. Opt-in via the --github flag."""
@@ -152,6 +202,24 @@ def main(argv):
                   "`/sdlc-context` then grounds every goal in it.")
         else:
             print("\nsdlc-init: north-star already present (kept).")
+    if "--cursor" in flags:
+        wrote = scaffold_cursor(target)
+        # Cursor never has the superpowers/code-review companions - pin companions:off so the portable
+        # executors are used without a pointless `claude plugin list` probe (fail-open if config's odd).
+        try:
+            cfgp = pathlib.Path(target) / ".sdlc" / "config.json"
+            cfg = json.loads(cfgp.read_text(encoding="utf-8"))
+            if cfg.get("companions") != "off":
+                cfg["companions"] = "off"
+                cfgp.write_text(json.dumps(cfg, indent=2) + "\n", encoding="utf-8")
+        except Exception:
+            pass
+        if wrote:
+            print("\nsdlc-init: Cursor adapter queued - `.cursor/rules/sdlc.mdc` (always-applied SDLC "
+                  "discipline, the hook analog). companions pinned off (portable executors). The zero-dep "
+                  "python helpers run from your LoopSmith checkout via Cursor's terminal.")
+        else:
+            print("\nsdlc-init: Cursor rule already present (kept).")
     return 0
 
 

@@ -33,6 +33,9 @@ Every option LoopSmith provides, at a glance:
 | **Context recall** | Pulls the relevant slice of project memory into context before each goal | `/sdlc-context` |
 | **Velocity calibration** | Size work from real git throughput, not "this feels like weeks" | `/sdlc-velocity` |
 | **Proactive research scout** | Sweep the backlog for new SOTA, dedup, write a ranked digest (dry-run) | `/sdlc-radar` |
+| **Model auto-selection** | Predict the tier a goal deserves (haiku/sonnet/opus/fable); the loop runs it there | `/sdlc-model`, `model_selection: auto` |
+| **Quality-drift gate** | A behavioral corpus scored on every change; the build fails if a discipline signal regresses | `evals/run.py` |
+| **Runs beyond Claude** | A Cursor host adapter — the SDLC discipline as an always-applied Cursor rule | `/sdlc-init --cursor` |
 | **Status at a glance** | Backlog counts + whether the review queue needs you | `/sdlc-status` |
 | **Setup check-up** | Audits the setup and hands you the exact fix for anything missing — no silent failures | `/sdlc-doctor` |
 
@@ -55,6 +58,8 @@ That installs the spine **globally** — the hook then fires in every project �
   run the demo on a real board ([Your backlog](#your-backlog-local-files-or-github-issues)).
 - Add **`--vision`** (or run **`/sdlc-vision`**) to start from a product vision instead
   ([Two ways to start](#two-ways-to-start-drop-in-or-vision-first)).
+- On **Cursor** (or any non-Claude host)? Add **`--cursor`** to get the SDLC discipline as an
+  always-applied Cursor rule ([Runs on Cursor too](#runs-on-cursor-too)).
 
 See the **[worked walkthrough](examples/hello-sdlc/)** for a runnable end-to-end example. Forking the
 kit to publish it? See [EXTRACT.md](EXTRACT.md).
@@ -71,6 +76,22 @@ git clone <git-url> && cd loopsmith && ./install.sh
 `install.sh` copies the spine into `~/.claude/skills/loopsmith/` and **prints** the `settings.json`
 `UserPromptSubmit` hook snippet for you to paste (it never edits your settings). Then install the
 `superpowers` + `code-review` companions yourself to get the phase-execution skills.
+
+## Runs on Cursor too
+
+Cursor has no plugin system, `UserPromptSubmit` hook, or `superpowers`/`code-review` — so LoopSmith
+brings its own. From your LoopSmith checkout:
+
+```
+python3 <loopsmith>/skills/sdlc-init/scripts/sdlc_init.py . --cursor --demo
+```
+
+That writes **`.cursor/rules/sdlc.mdc`** — an *always-applied* Cursor rule carrying the full 7-phase
+discipline (Cursor's analog of the Claude hook) — scaffolds the `.sdlc/` layer, and pins
+`companions: off` so each phase runs via the **portable `sdlc-*` executors** instead of the Claude-only
+companions. The loop, model-selection, status and KG **helpers are plain zero-dep `python3`** — run
+them from Cursor's terminal (e.g. `python3 <loopsmith>/skills/sdlc-loop/scripts/loop.py next .sdlc`).
+Same spine, same executors, same audit trail — no Claude required.
 
 ---
 
@@ -453,8 +474,11 @@ requirement of the spine. (Ref: [plugin dependencies](https://code.claude.com/do
 
 ## Status (honest)
 
-LoopSmith is **Claude Code only.** The core is plain markdown + shell, structured to be host-portable,
-but a second-host (Codex/etc.) adapter is not yet shipped.
+LoopSmith is **built on Claude Code** and most seamless there — the always-on hook, one-command plugin
+install, and the `superpowers`/`code-review` companions. It is **no longer Claude-only:** the phase
+executors are portable and `/sdlc-init --cursor` ships a **Cursor** host adapter (the discipline as an
+always-applied rule). Other hosts (Codex/etc.) can follow the same shape — a host rules file +
+`companions: off` — but aren't scaffolded yet.
 
 ## Quality & drift (`evals/`)
 
