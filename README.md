@@ -59,48 +59,9 @@ That installs the spine **globally** — the hook then fires in every project �
   run the demo on a real board ([Your backlog](#your-backlog-local-files-or-github-issues)).
 - Add **`--vision`** (or run **`/sdlc-vision`**) to start from a product vision instead
   ([Two ways to start](#two-ways-to-start-drop-in-or-vision-first)).
-- On **Cursor** (or any non-Claude host)? **`--cursor`** scaffolds an always-applied Cursor rule with
-  the SDLC discipline — **experimental, not yet verified in a live Cursor session**
-  ([Cursor adapter](#cursor-adapter-experimental)).
 
 See the **[worked walkthrough](examples/hello-sdlc/)** for a runnable end-to-end example. Forking the
 kit to publish it? See [EXTRACT.md](EXTRACT.md).
-
-## No plugin marketplace? Install the fallback
-
-If your Claude Code setup doesn't have the plugin marketplace, **this is your install path** — it wires
-the same spine directly, no marketplace required:
-
-```
-git clone <git-url> && cd loopsmith && ./install.sh
-```
-
-`install.sh` copies the spine into `~/.claude/skills/loopsmith/` and **prints** the `settings.json`
-`UserPromptSubmit` hook snippet for you to paste (it never edits your settings). Optionally install the
-`superpowers` + `code-review` companions for the best per-phase execution — without them, the portable
-`sdlc-*` executors run the phases.
-
-## Cursor adapter (experimental)
-
-> **Not yet verified in a live Cursor session.** The scaffolding below is built and unit-tested, but
-> LoopSmith has **not been run end-to-end inside Cursor.** Treat this as experimental until that's
-> confirmed — the `.mdc` rule format follows Cursor's documented convention, but real-session behavior
-> is unverified.
-
-Cursor has no plugin system, `UserPromptSubmit` hook, or `superpowers`/`code-review`. From your
-LoopSmith checkout:
-
-```
-python3 <loopsmith>/skills/sdlc-init/scripts/sdlc_init.py . --cursor --demo
-```
-
-That writes **`.cursor/rules/sdlc.mdc`** — intended as an *always-applied* Cursor rule carrying the full
-7-phase discipline (Cursor's analog of the Claude hook) — scaffolds the `.sdlc/` layer, and pins
-`companions: off` so each phase would run via the **portable `sdlc-*` executors** instead of the
-Claude-only companions. The loop, model-selection, status and KG **helpers are plain zero-dep
-`python3`** — run them from Cursor's terminal (e.g.
-`python3 <loopsmith>/skills/sdlc-loop/scripts/loop.py next .sdlc`). Once verified in a live session, the
-goal is the same spine, executors, and audit trail without Claude — **help testing this is welcome.**
 
 ---
 
@@ -505,10 +466,8 @@ companions are how each phase runs *best on Claude*, not a hard runtime requirem
 
 LoopSmith is **built on and validated only on Claude Code** — the always-on hook, one-command plugin
 install, and the `superpowers`/`code-review` companions. The phase executors are written to be
-**portable**, and `/sdlc-init --cursor` scaffolds an **experimental Cursor adapter** (the discipline as
-an always-applied rule) — but that path has **not yet been run end-to-end in a live Cursor session**,
-so don't rely on it as working support yet ([details](#cursor-adapter-experimental)). Other hosts
-(Codex/etc.) could follow the same shape — a host rules file + `companions: off` — but aren't scaffolded.
+**portable**; an experimental Cursor adapter exists but **isn't verified in a live session yet** — see
+[Other platforms supported](#other-platforms-supported).
 
 ## Quality & drift (`evals/`)
 
@@ -531,11 +490,43 @@ catch drift (see [`evals/README.md`](evals/README.md)):
   default local source stays zero-dep.
 - **Knowledge graph (optional):** the graph builder — default `graphify` (`pip install graphifyy`);
   off unless `knowledge_graph.enabled` is set.
-- **Companions (optional):** `superpowers` + `code-review` — auto-installed on the plugin path, manual
-  on the fallback path; **absent, the parity-reviewed portable `sdlc-*` executors run the phases**.
+- **Companions (optional):** `superpowers` + `code-review` — auto-installed with the plugin; **absent,
+  the parity-reviewed portable `sdlc-*` executors run the phases**.
 - **Dev/test:** `pip install pytest pytest-cov`, then `pytest tests/ -v`. **CI** (GitHub Actions) runs
   the full suite — including the **leakage gate**, the **hook behavioral-spec**, and the **Tier-1
   quality gate** (`evals/run.py`) — with an **85% coverage floor** on every push/PR, on Python 3.10 + 3.12.
+
+## Other platforms supported
+
+LoopSmith is built on and validated only on **Claude Code**. Beyond it, the phase executors are
+portable, so other hosts can run the same spine — but **only Cursor is scaffolded so far, and it is not
+yet verified in a live session.**
+
+### Cursor (experimental)
+
+> **Not yet verified in a live Cursor session.** The scaffolding is built and unit-tested, but
+> LoopSmith has **not been run end-to-end inside Cursor.** Treat this as experimental — the `.mdc` rule
+> format follows Cursor's documented convention, but real-session behavior is unverified.
+
+Cursor has no plugin system, `UserPromptSubmit` hook, or `superpowers`/`code-review`. From your
+LoopSmith checkout:
+
+```
+python3 <loopsmith>/skills/sdlc-init/scripts/sdlc_init.py . --cursor --demo
+```
+
+That writes **`.cursor/rules/sdlc.mdc`** — intended as an *always-applied* Cursor rule carrying the full
+7-phase discipline (Cursor's analog of the Claude hook) — scaffolds the `.sdlc/` layer, and pins
+`companions: off` so each phase would run via the **portable `sdlc-*` executors** instead of the
+Claude-only companions. The loop, model-selection, status and KG **helpers are plain zero-dep
+`python3`** — run them from Cursor's terminal (e.g.
+`python3 <loopsmith>/skills/sdlc-loop/scripts/loop.py next .sdlc`). Once verified in a live session, the
+goal is the same spine, executors, and audit trail without Claude — **help testing this is welcome.**
+
+### Other hosts
+
+Codex and others could follow the same shape — a host rules file + `companions: off` — but aren't
+scaffolded yet.
 
 ## Credits & acknowledgements
 
