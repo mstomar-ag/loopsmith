@@ -247,7 +247,9 @@ to externalize a tiered **north-star** into `.sdlc/context/north-star.md` — **
 (+ non-goals) → Design → Architecture**. Then every goal is grounded in it: `/sdlc-context` recalls
 the north-star first, and `sdlc-plan-review`'s **alignment gate** blocks any plan that contradicts
 your strategy or advances a stated non-goal (**FIX-FIRST**). The agent can't build something that
-fights your direction.
+fights your direction. The one-pass draft is the lean default; when you want to externalize a tier
+properly, `/sdlc-vision` loads an optional **deep-elicitation guide** per tier (on demand, never bloat)
+— and the **Architecture** tier drafts its rules straight from the codebase for you to approve.
 
 > **Progressive disclosure is the seam:** a drop-in project can add a north-star later; a vision-first
 > project just starts running goals once the tiers are filled. No north-star → the alignment gate is a
