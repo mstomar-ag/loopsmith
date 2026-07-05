@@ -17,6 +17,100 @@ remembers what it learns in a **self-improving knowledge graph**.
 
 ---
 
+## Two ways to run: interactive or autonomous
+
+Both modes drive the **same seven phases** per goal — they differ in who's in the loop and what
+happens at a checkpoint. The always-on hook underpins both.
+
+### `/sdlc-goal <goal>` — interactive
+
+One goal through the engine, **pausing for your approval at each gate**. Take a goal from
+`.sdlc/goals/` (preferred — so it's tracked) or inline text, then walk Goal → Research → Plan →
+**Plan-Review** (via `sdlc-plan-review`, never skipped) → Implement (test-first) → Review (evidence
+before "done"). It does **not** auto-proceed past checkpoints — you approve each one. The outcome is
+recorded to `.sdlc/` (`done`, or `parked` with a reason) so it shows in `/sdlc-status`.
+
+### `/sdlc-loop` — autonomous
+
+Pulls the backlog — local `.sdlc/goals/` files or [GitHub issues](#your-backlog-local-files-or-github-issues) —
+and runs **each goal autonomously** through the same phases. Anything
+that needs a human is **parked to `.sdlc/state/review-queue.md`** and the loop continues — it parks,
+it does not force. It parks on:
+
+- a hard checkpoint / a decision only you can make,
+- an **irreversible or expensive action** (deploy, delete, overwrite, spend, migrate) — never run
+  unattended,
+- a failure it cannot resolve.
+
+It halts on a **per-run iteration budget** (`config.json` → `budget.max_iterations`), which resets
+each invocation and is resume-safe (a budget stop, re-run, picks up where it left off). Run
+**`/sdlc-status`** any time for backlog counts (pending / in-progress / done / parked) + whether the
+review queue needs attention.
+
+| | `/sdlc-goal` (interactive) | `/sdlc-loop` (autonomous) |
+|---|---|---|
+| Scope | one goal | the whole `.sdlc/goals/` backlog |
+| At a checkpoint | pauses for you | parks to the review queue, continues |
+| Approval | every gate | only what it parks |
+| Stops on | goal complete / you stop | backlog empty or per-run budget |
+| Irreversible action | asks you | always parks — never runs it |
+
+---
+
+## The seven phases
+
+Each phase runs via an **executor**, resolved per host: on Claude with the companion installed, the
+`superpowers` / `code-review` skill; otherwise LoopSmith's **portable `sdlc-*` executor** — each with a
+committed [parity review](docs/executor-parity/) showing it's at-par-or-better. Phase 4 is always
+LoopSmith's own; no companion ships it.
+
+1. **Goal** — restate the objective as one concrete, checkable goal. For feature/creative work, this
+   is where you explore intent and requirements first.
+   → *executor:* `superpowers:brainstorming` · portable `sdlc-brainstorm`.
+2. **Research** — map the blast radius: affected files, existing patterns, constraints, prior art.
+   → *agent practice; no dedicated skill.*
+3. **Plan** — write the plan: steps, files, tests, and a definition-of-done. Size it against real
+   throughput with **`/sdlc-velocity`** (measured git pace), not "this feels like weeks."
+   → *executor:* `superpowers:writing-plans` · portable `sdlc-plan`.
+4. **Plan-Review** — adversarially review the plan **before** any edit: verify each claim against the
+   real code, stress-test what breaks after it ships, check scope/fit, and (vision-first) check it
+   against your strategy. Never skipped. This is the gate `superpowers` doesn't provide, so LoopSmith
+   ships it.
+   → *owned by* **`sdlc-plan-review`** (always LoopSmith's — no companion equivalent).
+5. **Implement** — build test-first and execute the plan step by step.
+   → *executor:* `superpowers:test-driven-development` + `executing-plans` · portable `sdlc-implement`.
+6. **Review** — code-review the diff for real findings, then verify every claim with evidence before
+   declaring anything done.
+   → *executor:* `code-review` + `superpowers:requesting-code-review` + `verification-before-completion`
+   · portable `sdlc-review` + `sdlc-verify`.
+7. **Retrospective** — capture lessons; lock the critical insights so the next loop is better.
+   → *agent practice; no dedicated skill.*
+
+---
+
+## Quickstart
+
+```
+/plugin marketplace add <git-url-or-local-path>
+/plugin install loopsmith
+/sdlc-init --demo     # scaffolds a small, safe, runnable demo goal
+/sdlc-loop            # watch it run Goal → Research → … → Review end-to-end
+```
+
+That installs the spine **globally** — the hook then fires in every project — and auto-installs the
+`superpowers` + `code-review` companions ([details](#dependencies-auto-installed-companions));
+`/sdlc-init` scaffolds each repo's `.sdlc/` layer and is safe to re-run.
+
+- Add **`--github`** to `/sdlc-init` to also set up the GitHub Projects board + issue templates and
+  run the demo on a real board ([Your backlog](#your-backlog-local-files-or-github-issues)).
+- Add **`--vision`** (or run **`/sdlc-vision`**) to start from a product vision instead
+  ([Two ways to start](#two-ways-to-start-drop-in-or-vision-first)).
+
+See the **[worked walkthrough](examples/hello-sdlc/)** for a runnable end-to-end example. Forking the
+kit to publish it? See [EXTRACT.md](EXTRACT.md).
+
+---
+
 ## What you get
 
 Every option LoopSmith provides, at a glance:
@@ -42,26 +136,24 @@ Every option LoopSmith provides, at a glance:
 
 ---
 
-## Quickstart
+## Why LoopSmith
 
-```
-/plugin marketplace add <git-url-or-local-path>
-/plugin install loopsmith
-/sdlc-init --demo     # scaffolds a small, safe, runnable demo goal
-/sdlc-loop            # watch it run Goal → Research → … → Review end-to-end
-```
+What you don't get anywhere else, in one kit:
 
-That installs the spine **globally** — the hook then fires in every project — and auto-installs the
-`superpowers` + `code-review` companions ([details](#dependencies-auto-installed-companions));
-`/sdlc-init` scaffolds each repo's `.sdlc/` layer and is safe to re-run.
-
-- Add **`--github`** to `/sdlc-init` to also set up the GitHub Projects board + issue templates and
-  run the demo on a real board ([Your backlog](#your-backlog-local-files-or-github-issues)).
-- Add **`--vision`** (or run **`/sdlc-vision`**) to start from a product vision instead
-  ([Two ways to start](#two-ways-to-start-drop-in-or-vision-first)).
-
-See the **[worked walkthrough](examples/hello-sdlc/)** for a runnable end-to-end example. Forking the
-kit to publish it? See [EXTRACT.md](EXTRACT.md).
+- **Automatic model selection.** It predicts the right tier per goal — `haiku · sonnet · opus · fable` —
+  and runs that goal's phases there, so a rename won't burn Opus and a migration won't crawl on Haiku — you set nothing.
+- **A plan-review gate before any edit.** The plan is adversarially reviewed against the real code first,
+  and the always-on hook won't let the agent skip straight to coding. Discipline is automatic, not remembered.
+- **Your strategy has teeth.** A plan that contradicts your stated strategy or advances a non-goal is blocked
+  **FIX-FIRST** against your north-star — so the agent can't quietly build the wrong thing.
+- **An overnight autopilot, not a one-shot.** It drives a whole backlog unattended, parks anything that needs you,
+  and never runs an irreversible action alone — you wake up to verified work plus a full audit trail.
+- **A knowledge graph that improves itself.** It captures research and lessons, tracks what it *doesn't* know,
+  prunes stale notes, and fills its own gaps — each run is sharper, not noisier.
+- **No lock-in.** Every phase runs via a companion on Claude or a parity-reviewed **portable executor** elsewhere —
+  zero hard dependencies, so the same spine runs on any host.
+- **Quality that can't silently regress.** A behavioral eval corpus is scored on every change and fails the build
+  if a discipline signal drops — drift is caught before you ship it.
 
 ---
 
@@ -141,62 +233,6 @@ flowchart TD
 
 ---
 
-## The seven phases
-
-Each phase runs via an **executor**, resolved per host: on Claude with the companion installed, the
-`superpowers` / `code-review` skill; otherwise LoopSmith's **portable `sdlc-*` executor** — each with a
-committed [parity review](docs/executor-parity/) showing it's at-par-or-better. Phase 4 is always
-LoopSmith's own; no companion ships it.
-
-1. **Goal** — restate the objective as one concrete, checkable goal. For feature/creative work, this
-   is where you explore intent and requirements first.
-   → *executor:* `superpowers:brainstorming` · portable `sdlc-brainstorm`.
-2. **Research** — map the blast radius: affected files, existing patterns, constraints, prior art.
-   → *agent practice; no dedicated skill.*
-3. **Plan** — write the plan: steps, files, tests, and a definition-of-done. Size it against real
-   throughput with **`/sdlc-velocity`** (measured git pace), not "this feels like weeks."
-   → *executor:* `superpowers:writing-plans` · portable `sdlc-plan`.
-4. **Plan-Review** — adversarially review the plan **before** any edit: verify each claim against the
-   real code, stress-test what breaks after it ships, check scope/fit, and (vision-first) check it
-   against your strategy. Never skipped. This is the gate `superpowers` doesn't provide, so LoopSmith
-   ships it.
-   → *owned by* **`sdlc-plan-review`** (always LoopSmith's — no companion equivalent).
-5. **Implement** — build test-first and execute the plan step by step.
-   → *executor:* `superpowers:test-driven-development` + `executing-plans` · portable `sdlc-implement`.
-6. **Review** — code-review the diff for real findings, then verify every claim with evidence before
-   declaring anything done.
-   → *executor:* `code-review` + `superpowers:requesting-code-review` + `verification-before-completion`
-   · portable `sdlc-review` + `sdlc-verify`.
-7. **Retrospective** — capture lessons; lock the critical insights so the next loop is better.
-   → *agent practice; no dedicated skill.*
-
-### Why not just superpowers?
-
-`superpowers` gives you excellent **per-phase skills on demand**. LoopSmith is the layer *around* them
-— and it works **without** them:
-
-- **Always-on discipline** — the hook holds *every* prompt to the spine, so the agent can't skip
-  planning. (superpowers is on-demand; this is the guardrail.)
-- **Two gates** — the Phase-4 **plan-review** *and* the **strategy-alignment** gate. superpowers has neither.
-- **An autonomous loop** — park-and-continue over a backlog (local files, GitHub issues, or a GitHub
-  Projects board) with a budget, status transitions, and a recorded audit trail. superpowers has no
-  loop, no backlog, no board.
-- **The project layer** — `.sdlc/` scaffolding, GitHub PM templates, the board, and the optional
-  self-improving knowledge graph.
-
-In short: superpowers is *muscle* for four of the phases; LoopSmith is the **spine, the gates, and the
-autonomous engine** that drives a whole backlog through all seven — and it names superpowers as a
-recommended companion, not a hard dependency.
-
-**Even the muscle is now optional.** LoopSmith ships **portable executors** — `sdlc-brainstorm` (Goal),
-`sdlc-plan` (Plan), `sdlc-implement` (Implement), `sdlc-review` + `sdlc-verify` (Review) — each with a
-committed [parity review](docs/executor-parity/) showing it's at-par-or-better vs its superpowers/
-code-review counterpart. Each carries a resolution header: **on Claude with the companion installed, the
-companion runs; otherwise the portable executor does** (`companions: auto` in config; `/sdlc-doctor`
-detects them). So superpowers/code-review are *optional premiums* — LoopSmith runs fully on any host.
-
----
-
 ## Two ways to start: drop-in or vision-first
 
 LoopSmith meets you where you are — both on the **same spine**, so you can move between them anytime.
@@ -216,46 +252,6 @@ fights your direction.
 > **Progressive disclosure is the seam:** a drop-in project can add a north-star later; a vision-first
 > project just starts running goals once the tiers are filled. No north-star → the alignment gate is a
 > no-op, and drop-in behaves exactly as before.
-
----
-
-## Two ways to run: interactive or autonomous
-
-Both modes drive the **same seven phases** per goal — they differ in who's in the loop and what
-happens at a checkpoint. The always-on hook underpins both.
-
-### `/sdlc-goal <goal>` — interactive
-
-One goal through the engine, **pausing for your approval at each gate**. Take a goal from
-`.sdlc/goals/` (preferred — so it's tracked) or inline text, then walk Goal → Research → Plan →
-**Plan-Review** (via `sdlc-plan-review`, never skipped) → Implement (test-first) → Review (evidence
-before "done"). It does **not** auto-proceed past checkpoints — you approve each one. The outcome is
-recorded to `.sdlc/` (`done`, or `parked` with a reason) so it shows in `/sdlc-status`.
-
-### `/sdlc-loop` — autonomous
-
-Pulls the backlog — local `.sdlc/goals/` files or [GitHub issues](#your-backlog-local-files-or-github-issues) —
-and runs **each goal autonomously** through the same phases. Anything
-that needs a human is **parked to `.sdlc/state/review-queue.md`** and the loop continues — it parks,
-it does not force. It parks on:
-
-- a hard checkpoint / a decision only you can make,
-- an **irreversible or expensive action** (deploy, delete, overwrite, spend, migrate) — never run
-  unattended,
-- a failure it cannot resolve.
-
-It halts on a **per-run iteration budget** (`config.json` → `budget.max_iterations`), which resets
-each invocation and is resume-safe (a budget stop, re-run, picks up where it left off). Run
-**`/sdlc-status`** any time for backlog counts (pending / in-progress / done / parked) + whether the
-review queue needs attention.
-
-| | `/sdlc-goal` (interactive) | `/sdlc-loop` (autonomous) |
-|---|---|---|
-| Scope | one goal | the whole `.sdlc/goals/` backlog |
-| At a checkpoint | pauses for you | parks to the review queue, continues |
-| Approval | every gate | only what it parks |
-| Stops on | goal complete / you stop | backlog empty or per-run budget |
-| Irreversible action | asks you | always parks — never runs it |
 
 ---
 
