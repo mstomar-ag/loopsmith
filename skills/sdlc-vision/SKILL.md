@@ -25,7 +25,14 @@ building it. Same `.sdlc/` layout, same spine — just a thicker context layer.
      **enforces** these (the stack stays in `project.md`).
    Write each tier into the file as you settle it; **never overwrite a tier the user already filled**
    without asking.
-3. **Confirm it's live:** `/sdlc-context` now recalls the north-star first for every goal, grounding
+3. **Go deep on a tier (optional, on demand)** — the one-pass draft above is the lean default. When the
+   user wants to externalize a tier properly, load its deep-elicitation guide and run it:
+   `${CLAUDE_SKILL_DIR}/references/{vision,strategy,design,architecture}.md` — a fuller question set,
+   pre-flight, stress-tests, and a per-tier refresh cadence. **Architecture** drafts itself from the
+   codebase (README + structure + `git log` + any `CLAUDE.md`/`AGENTS.md`) for the user to approve; the
+   others elicit from the user one or two questions at a time. Load a guide only when that depth is
+   asked for — the thin pass stays the default; never bloat.
+4. **Confirm it's live:** `/sdlc-context` now recalls the north-star first for every goal, grounding
    Goal → Plan in it. They can deepen it anytime by re-running `/sdlc-vision`.
 
 Keep it lean — this is direction that grounds the work, not a document to maintain for its own sake.
