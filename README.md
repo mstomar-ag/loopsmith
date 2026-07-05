@@ -83,8 +83,9 @@ LoopSmith's own; no companion ships it.
    declaring anything done.
    → *executor:* `code-review` + `superpowers:requesting-code-review` + `verification-before-completion`
    · portable `sdlc-review` + `sdlc-verify`.
-7. **Retrospective** — capture lessons; lock the critical insights so the next loop is better.
-   → *agent practice; no dedicated skill.*
+7. **Retrospective** — surface the structural + product debt the fix left behind, grade
+   intent-vs-shipped, and route each durable lesson to the right store (advisory).
+   → *executor:* **`sdlc-retro`** (always LoopSmith's own — no companion equivalent).
 
 ---
 
@@ -130,6 +131,7 @@ Every option LoopSmith provides, at a glance:
 | **Proactive research scout** | Sweep the backlog for new SOTA, dedup, write a ranked digest (dry-run) | `/sdlc-radar` |
 | **Model auto-selection** | Predict the tier a goal deserves (haiku/sonnet/opus/fable); the loop runs it there | `/sdlc-model`, `model_selection: auto` |
 | **Quality-drift gate** | A behavioral corpus scored on every change; the build fails if a discipline signal regresses | `evals/run.py` |
+| **Retrospective / learning loop** | After each goal: structural + product debt, intent-vs-shipped, lessons routed to the right store (advisory) | `/sdlc-retro` |
 | **Cursor adapter** *(experimental)* | Scaffolds the SDLC discipline as an always-applied Cursor rule — *not yet verified in a live Cursor session* | `/sdlc-init --cursor` |
 | **Status at a glance** | Backlog counts + whether the review queue needs you | `/sdlc-status` |
 | **Setup check-up** | Audits the setup and hands you the exact fix for anything missing — no silent failures | `/sdlc-doctor` |
