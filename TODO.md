@@ -30,6 +30,11 @@ and the agent follows the spine + runs the portable executors + the `python3` he
 
 ## Other deferred (see the roadmap for context)
 
+- **Periodic cumulative-drift audit** — a *distinct* check from `sdlc-plan-review`'s per-plan alignment
+  gate: audit slow drift over weeks (do recent decisions/goals still match the north-star's bets? has a
+  rule's premise moved? did an implicit new bet emerge?). Genericized from the reference repo's
+  alignment-reflection; deferred to stay lean (per-plan alignment + `sdlc-retro`'s per-goal north-star
+  feedback already cover most of it). Add as a `/sdlc-align` mode only if drift proves to slip past both.
 - **research-radar Phase B/C** — findings → gap log → the loop fills them; opt-in guard-railed GitHub
   filing. Deferred until the dry-run digest (`/sdlc-radar`) proves useful.
 - **Second-host adapters beyond Cursor** — once Cursor is verified, a Codex/other adapter can follow

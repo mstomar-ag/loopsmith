@@ -43,9 +43,13 @@ Then repeat until the helper says stop:
    and appends to `.sdlc/journey/<goal>.md` in local mode; it's fail-open (never breaks the run).
 4. Entering the **review** phase? Move the board card to QC:
    `python3 "${CLAUDE_SKILL_DIR}/scripts/loop.py" qc .sdlc "$goal"` (github-project board only — a no-op for local/issues).
-5. Record the outcome:
+5. **Retrospective (Learn)** — after Review, run the **`sdlc-retro`** executor (advisory): reflect on
+   the structural + product debt the fix left behind and grade intent-vs-shipped. Autonomous mode →
+   **write only the audit-trail notes**, and **park** any north-star / standing-rule proposal to the
+   review queue for a human; never edit a standing doc unattended. Fail-open — it never breaks the run.
+6. Record the outcome:
    `python3 "${CLAUDE_SKILL_DIR}/scripts/loop.py" record .sdlc "$goal" done` (or `parked "reason"`).
-6. Loop.
+7. Loop.
 
 **Self-improving (optional, gated):** when the backlog is empty (`next` → `DONE`) but the knowledge
 graph is enabled and `kg.py gap list .sdlc` shows open gaps **and** budget remains, you may close the

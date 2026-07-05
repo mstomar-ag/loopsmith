@@ -20,18 +20,24 @@ counterpart to the autonomous `/sdlc-loop`).
    Then drive the phases, pausing for the user at each gate:
    **Goal** (restate) → **Research** (blast radius) → **Plan** → **Plan-Review** (use the
    `sdlc-plan-review` skill — never skip) → **Implement** (test-first) → **Review** (evidence before
-   "done"). Each phase runs via its **executor**: on Claude with the companion installed, the
-   `superpowers` / `code-review` skill; otherwise LoopSmith's **portable executor** (`sdlc-brainstorm`
-   → Goal, `sdlc-plan` → Plan, `sdlc-implement` → Implement, `sdlc-review` + `sdlc-verify` → Review).
+   "done") → **Retrospective** (step 3). Each phase runs via its **executor**: on Claude with the
+   companion installed, the `superpowers` / `code-review` skill; otherwise LoopSmith's **portable
+   executor** (`sdlc-brainstorm` → Goal, `sdlc-plan` → Plan, `sdlc-implement` → Implement, `sdlc-review`
+   + `sdlc-verify` → Review, `sdlc-retro` → Retrospective).
    Each executor's resolution header encodes this — so it works on any host.
    Record each phase as you go — `python3 "${CLAUDE_SKILL_DIR}/../sdlc-loop/scripts/loop.py" note .sdlc
    "<goal>" "<phase>: <findings / decisions>"` (and 🔒 Critical Insights for key decisions) — so the
    issue timeline (github mode) or `.sdlc/journey/` (local) holds the audit trail.
-3. When the goal is genuinely complete (verified, not assumed), record it:
+3. **Retrospective (Learn)** — after Review, run the **`sdlc-retro`** executor: reflect on the
+   structural + product debt the fix left behind, grade intent-vs-shipped, and route durable lessons to
+   the right store (audit trail / north-star / standing rule). It's **advisory** — it records the
+   audit-trail notes and **proposes** any north-star or standing-rule change for you to approve; it
+   never auto-writes your standing docs.
+4. When the goal is genuinely complete (verified, not assumed), record it:
    `python3 "${CLAUDE_SKILL_DIR}/../sdlc-loop/scripts/loop.py" record .sdlc "<goal-path>" done`
    so it shows as done in `/sdlc-status`. If the user stops early, or it hits an irreversible action
    they don't approve, record `parked "reason"` instead.
-4. Report what shipped + the evidence.
+5. Report what shipped + the evidence.
 
 Unlike `/sdlc-loop`, you do NOT auto-proceed past checkpoints — the user approves each gate.
 (The `../sdlc-loop/scripts/loop.py` path reaches the sibling skill's recorder — both ship in one

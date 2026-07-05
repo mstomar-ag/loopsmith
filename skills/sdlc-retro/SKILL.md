@@ -1,0 +1,79 @@
+---
+name: sdlc-retro
+description: The Retrospective / learning executor — after a goal ships, surface the structural + product debt the narrow fix left behind, check what shipped against the original intent, and route each durable lesson to the right store (audit trail / north-star / standing rule). Advisory — it proposes, and parks north-star + standing-rule changes for your approval. Use at the end of a goal, in the Retrospective phase, or when the user runs /sdlc-retro.
+allowed-tools: Bash(python3 *), Bash(git *), Bash(gh issue *)
+---
+
+# sdlc-retro
+
+The **Retrospective (Learn)** phase executor — LoopSmith's backward-learning loop, so a goal doesn't
+just ship, it *teaches*. Runs at the end of a goal, **after Review**. It is **advisory**: it proposes,
+writes only the audit-trail note freely, and **parks** any north-star or standing-rule change for your
+approval — it never rewrites your standing docs unattended (mirrors how `sdlc-kg`'s `maintain` only
+proposes).
+
+## Executor resolution (host-aware)
+No `superpowers` / `code-review` companion covers retrospective learning, so this is **always
+LoopSmith's own**. It *complements* the Review phase's `superpowers:verification-before-completion`
+(which asks "is it correct / done?") — it does not duplicate it (this asks "what did we learn, what
+debt remains?"). Pure markdown discipline + `git` / `python3`, so it degrades gracefully on any host.
+
+## Pre-flight — gather the evidence (repo-auto-detect, fail-open)
+Read what this specific repo offers; skip whatever's absent (never break the run):
+- **The original intent** — the goal's own text: the `.sdlc/goals/NNNN-*.md` file (local mode) or the
+  issue body (`gh issue view "$goal"`, github mode).
+- **What shipped** — the diff for this goal's work (`git diff` / `git log` over its branch or commits).
+- **The journey** — `.sdlc/journey/<goal>.md` (local) or the issue timeline (github): the phase notes
+  and 🔒 Critical Insights recorded as the goal ran.
+- **Standing context** — the repo `README`, `.sdlc/context/north-star.md` (if present),
+  `.sdlc/project.md`, and any `CLAUDE.md` / `AGENTS.md` governing the paths the goal touched.
+
+## 1. Structural reflection — the debt the narrow fix left behind
+- **Multi-site smell** — did one logical fix touch 2+ places? That's a missing shared contract /
+  abstraction; name it.
+- **Coverage themes** — did review keep finding the same class of gap (e.g. "no test exercises the real
+  path")? Propose the convention or helper that closes it.
+- **Deferred roots** — for each thing the plan left out, classify: *tactical* defer (fine, leave it) vs
+  *structural* defer (a missing primitive — promote to a recommendation).
+- **Rule alignment** — did the work reinforce a standing rule (cite it), or reveal one worth adding or
+  retiring?
+
+## 2. Product reflection — the gaps the work revealed
+- **Friction / quality signals** — where did the work feel like fighting the product? A UX or feature gap?
+- **Bugs that are features** — did the goal want something the system had no place for? Name the missing
+  capability.
+- **Direction** — does this advance the north-star / strategy, or drift out of scope?
+- **Negative space** — what should the run have produced but didn't?
+
+## 3. Intent-vs-shipped + the three-store learning harvest
+**Intent-vs-shipped** — compare what actually shipped (the diff) to the goal's original text. Grade it:
+- **achieved** — the intent is realized;
+- **partial** — realized for some of it; *name the residual gaps* and confirm each has a tracking item;
+- **diverged** — what shipped differs from the intent; say how and why.
+
+**Route each durable lesson to the right store.** Most stop at the first; the rest are *proposed* and
+*parked* for approval:
+- **Audit trail** — rationale worth re-reading later → record it on the goal:
+  `python3 "${CLAUDE_SKILL_DIR}/../sdlc-loop/scripts/loop.py" note .sdlc "<goal>" "retro: <lesson>"`
+  (comments the issue in github mode, appends to `.sdlc/journey/` in local mode). Safe to write freely.
+- **North-star** — if the build *taught the strategy or architecture* (a bet confirmed / refuted, the
+  code's shape now differs from a rule) → **propose** an edit to `.sdlc/context/north-star.md` and let
+  the user approve it. Don't auto-write.
+- **Standing rule** — a lesson that must gate *every* future plan / review **and isn't mechanically
+  enforced** (if a linter / type-checker / CI already catches it, a rule is redundant) → **propose** a
+  numbered rule for `.sdlc/project.md` or the governing `CLAUDE.md`. Rare; always parked.
+
+Route by test: audit-trail = "worth re-reading"; north-star = "changes our direction or shape"; standing
+rule = "must gate every change and nothing else enforces it". De-duplicate — a lesson seen across
+multiple goals is higher-confidence and a stronger candidate for the north-star or a rule.
+
+## Output
+A short retro: the intent grade (achieved / partial / diverged) + residual gaps, the structural +
+product findings, and a **proposals table** (lesson → store → the exact edit), with every standing-doc
+change clearly marked **needs your approval**. Record the audit-trail notes as you go; hand the parked
+proposals to the user.
+
+**Autonomous (`/sdlc-loop`) mode:** run the reflection and **write only the audit-trail notes**; write
+the proposals into the journey and **park** every north-star / standing-rule change to the review queue
+for a human — never edit a standing doc unattended. Fail-open: if `git` / `gh` / a file is missing, note
+it and continue. Retro never breaks a run.
