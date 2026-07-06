@@ -176,7 +176,7 @@ class GitHubSource:
         self._run(["issue", "comment", goal, *self._repo_args(), "--body", text])
 
     # ----- Projects-v2 board (best-effort mirror of issue status onto a kanban board) -----
-    # SDLC status -> the board's "SDLC Status" single-select. The whole layer is fail-open: a missing
+    # SDLC status -> GitHub's built-in "Status" single-select. The whole layer is fail-open: a missing
     # `project` token scope, an API hiccup, anything — it swallows the error so the loop never breaks.
 
     def _set_board_status(self, goal, status_name):

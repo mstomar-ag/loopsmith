@@ -2,7 +2,6 @@
   "name": "loopsmith",
   "description": "Guardrails + an overnight autopilot for AI coding agents",
   "owner": { "name": "Swapnil Dubey" },
-  "allowCrossMarketplaceDependenciesOn": ["claude-plugins-official"],
   "plugins": [
     {
       "name": "loopsmith",
