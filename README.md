@@ -11,9 +11,11 @@ straight to code. Then queue a backlog and let it **run autonomously**: each goa
 Start from an existing repo **or** a product vision; LoopSmith grounds the work in your strategy and
 remembers what it learns in a **self-improving knowledge graph**.
 
-> **One promise: best-quality output, minimum effort.** Zero runtime deps (bash + python3 stdlib); the
-> `superpowers` + `code-review` companions auto-install on Claude but are **optional** — portable
-> executors run the same phases on any host.
+> **One promise: best-quality output, minimum effort.** Zero runtime deps (bash + python3 stdlib) and
+> **zero hard plugin dependencies** — it installs seamlessly with or without anything else. If the
+> `superpowers` + `code-review` companions are **already installed**, LoopSmith uses them
+> automatically; if not, the portable `sdlc-*` executors run the same phases — **you install
+> nothing**, on any host.
 
 ---
 
@@ -98,9 +100,11 @@ LoopSmith's own; no companion ships it.
 /sdlc-loop            # watch it run Goal → Research → … → Review end-to-end
 ```
 
-That installs the spine **globally** — the hook then fires in every project — and auto-installs the
-`superpowers` + `code-review` companions ([details](#dependencies-auto-installed-companions));
-`/sdlc-init` scaffolds each repo's `.sdlc/` layer and is safe to re-run.
+That installs the spine **globally** — the hook then fires in every project; `/sdlc-init` scaffolds
+each repo's `.sdlc/` layer and is safe to re-run. If the `superpowers` + `code-review` companions are
+**already** in your plugin list, LoopSmith uses them automatically; if not, the portable `sdlc-*`
+executors run the same phases ([details](#companions-optional-enhancement)) — **nothing to install
+either way**.
 
 - Add **`--github`** to `/sdlc-init` to also set up the GitHub Projects board + issue templates and
   run the demo on a real board ([Your backlog](#your-backlog-local-files-or-github-issues)).
@@ -424,43 +428,31 @@ history stays a query away. The full closed loop: **record** (issues / journey) 
 
 ---
 
-## Dependencies (auto-installed companions)
+## Companions (optional enhancement)
 
-LoopSmith ships the *spine*; the *execution muscle* for Phases 1, 3, 5, and 6 can come from two
-companion plugins it declares as native dependencies (optional premiums — the
-[portable executors](#the-seven-phases) run the same phases without them):
+LoopSmith ships the *spine* **and** a portable executor for every phase, so it has **zero hard plugin
+dependencies** — `/plugin install loopsmith` is seamless whether or not anything else is present, and
+the kit is **never disabled** waiting on another plugin. The *execution muscle* for Phases 1, 3, 5,
+and 6 runs *best on Claude* through two companion plugins:
 
 - **`superpowers`** — `brainstorming`, `writing-plans`, `test-driven-development`, `executing-plans`,
   `requesting-code-review`, `verification-before-completion`.
 - **`code-review`** — the `/code-review` skill.
 
-When you `/plugin install loopsmith`, Claude Code **resolves and installs both automatically** and
-lists them at the end of the install output. They're declared **unversioned**, so they track the
-latest release in the official marketplace (no pinned git tags to resolve).
+**Zero action required — LoopSmith auto-detects them.** If a companion is **already in your plugin
+list**, each phase uses its richer skill; if it isn't, that phase falls to LoopSmith's **portable
+`sdlc-*` executor**. You **install nothing** to get a working, disciplined spine — the portable
+executors each carry a committed [parity review](docs/executor-parity/) showing they're
+at-par-or-better, so absence is never a downgrade you have to fix.
 
-**Requirement:** you must have the **`claude-plugins-official`** marketplace added. It's the official
-marketplace and ships **pre-registered** in current Claude Code, so this is normally already true.
-LoopSmith's own `marketplace.json` allowlists it via `allowCrossMarketplaceDependenciesOn` — that
-allowlist is what lets a dependency in *another* marketplace resolve.
+**How resolution works, per phase:** each phase skill carries a host-aware resolution header — on
+Claude *with the companion installed* it prefers the companion's richer skill; **otherwise** (companion
+absent / Cursor / any other host) it uses the portable `sdlc-*` executor. Either way the always-on hook
+still injects the 7-phase policy. Run `/sdlc-doctor` to see which companions are present (absent is
+reported as "portable executor used" — never an error).
 
-**If a companion is missing** (e.g. the marketplace isn't registered, or it was disabled), Claude Code
-marks LoopSmith with a **`dependency-unsatisfied`** error and disables it until resolved. Fixes, in
-order of convenience:
-
-1. Run the `claude plugin install …` command shown in the error, e.g.
-   `claude plugin install superpowers@claude-plugins-official` (and/or `code-review@…`).
-2. If the marketplace isn't registered, add it and Claude Code resolves the dependency automatically:
-   ```
-   claude plugin marketplace add anthropics/claude-plugins-official
-   ```
-   then `/reload-plugins`.
-3. If a companion is merely disabled, enable it.
-
-**Graceful degradation:** even with the companions absent, LoopSmith runs the same phases via its
-**portable `sdlc-*` executors** (each with a committed [parity review](docs/executor-parity/)) and the
-always-on hook still injects the 7-phase policy — LoopSmith **degrades, it does not break**. The
-companions are how each phase runs *best on Claude*, not a hard runtime requirement of the spine.
-(Ref: [plugin dependencies](https://code.claude.com/docs/en/plugin-dependencies).)
+*If you happen to want the companions and don't have them,* they live in the official
+`claude-plugins-official` marketplace — but this is a preference, never a setup step.
 
 ## Status (honest)
 
@@ -490,8 +482,9 @@ catch drift (see [`evals/README.md`](evals/README.md)):
   default local source stays zero-dep.
 - **Knowledge graph (optional):** the graph builder — default `graphify` (`pip install graphifyy`);
   off unless `knowledge_graph.enabled` is set.
-- **Companions (optional):** `superpowers` + `code-review` — auto-installed with the plugin; **absent,
-  the parity-reviewed portable `sdlc-*` executors run the phases**.
+- **Companions (optional):** `superpowers` + `code-review` — **auto-used when already installed**,
+  otherwise the **parity-reviewed portable `sdlc-*` executors run the phases**. Never required; you
+  install nothing either way.
 - **Dev/test:** `pip install pytest pytest-cov`, then `pytest tests/ -v`. **CI** (GitHub Actions) runs
   the full suite — including the **leakage gate**, the **hook behavioral-spec**, and the **Tier-1
   quality gate** (`evals/run.py`) — with an **85% coverage floor** on every push/PR, on Python 3.10 + 3.12.
@@ -532,10 +525,10 @@ scaffolded yet.
 
 LoopSmith stands on other people's work.
 
-- **[superpowers](https://github.com/obra/superpowers)** by **Jesse Vincent ([@obra](https://github.com/obra))** — supplies the per-phase execution skills (brainstorming, writing-plans, test-driven-development, executing-plans, requesting-code-review, verification-before-completion). Auto-installed as a dependency.
-- **[code-review](https://github.com/anthropics/claude-plugins-official)** by **Anthropic** — the `/code-review` skill used in the Review phase. Auto-installed as a dependency.
+- **[superpowers](https://github.com/obra/superpowers)** by **Jesse Vincent ([@obra](https://github.com/obra))** — supplies the per-phase execution skills (brainstorming, writing-plans, test-driven-development, executing-plans, requesting-code-review, verification-before-completion). Optional companion.
+- **[code-review](https://github.com/anthropics/claude-plugins-official)** by **Anthropic** — the `/code-review` skill used in the Review phase. Optional companion.
 
-Both companion plugins install from the official **`claude-plugins-official`** marketplace.
+Both companion plugins are optional and install from the official **`claude-plugins-official`** marketplace ([how](#companions-optional-enhancement)).
 
 ## License
 

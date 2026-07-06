@@ -1,11 +1,13 @@
-"""The kit auto-installs its companion plugins (superpowers + code-review) via the native
-plugin-dependency mechanism. plugin.json declares the deps; the root marketplace.json allowlists
-the cross-marketplace they live in. Unversioned (track latest, no git-tag resolution).
-Ref: https://code.claude.com/docs/en/plugin-dependencies"""
+"""Companions (superpowers + code-review) are an OPTIONAL enhancement, not hard dependencies.
+Every phase they power has a portable sdlc-* executor fallback (see test_packaging_slice4), so the
+kit must NOT declare them in plugin.json's `dependencies` array — a declared dependency is hard
+(unsatisfied → Claude Code disables the whole plugin with `dependency-unsatisfied`), which is exactly
+the install friction the portable executors exist to avoid. This test is the anti-regression guard:
+keep companions out of the manifest so `/plugin install loopsmith` is seamless whether or not they're
+present. Ref: https://code.claude.com/docs/en/plugin-dependencies"""
 import json, pathlib
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-MARKETPLACE = "claude-plugins-official"
 COMPANIONS = {"superpowers", "code-review"}
 
 
@@ -15,21 +17,20 @@ def _load(rel):
 
 def _dep_name(entry):
     # a dependency entry is either a bare name string or {"name": ..., "marketplace": ...}
-    return entry if isinstance(entry, str) else entry["name"]
+    return entry if isinstance(entry, str) else entry.get("name")
 
 
-def test_plugin_declares_companion_dependencies():
+def test_companions_are_not_hard_dependencies():
     deps = _load(".claude-plugin/plugin.json").get("dependencies", [])
-    by_name = {_dep_name(d): d for d in deps}
-    assert COMPANIONS <= set(by_name), f"missing companion deps: {COMPANIONS - set(by_name)}"
-    for name in COMPANIONS:
-        entry = by_name[name]
-        assert isinstance(entry, dict), f"{name} dep must be an object carrying its marketplace"
-        assert entry.get("marketplace") == MARKETPLACE
-        assert "version" not in entry, f"{name} dep is intentionally unversioned (tracks latest)"
+    declared = {_dep_name(d) for d in deps}
+    leaked = COMPANIONS & declared
+    assert not leaked, (
+        f"{leaked} declared as hard plugin dependencies — this disables LoopSmith when the companion "
+        f"can't be resolved. They're optional; the portable sdlc-* executors run the phases instead.")
 
 
-def test_root_marketplace_allows_cross_marketplace():
+def test_root_marketplace_needs_no_cross_marketplace_allowlist():
+    # With no cross-marketplace dependency to resolve, the allowlist is dead config — keep it absent.
     mk = _load(".claude-plugin/marketplace.json")
-    assert MARKETPLACE in mk.get("allowCrossMarketplaceDependenciesOn", []), \
-        "root marketplace must allowlist the cross-marketplace the deps resolve in"
+    assert "allowCrossMarketplaceDependenciesOn" not in mk, \
+        "no cross-marketplace dependency exists; drop the allowlist rather than carry dead config"

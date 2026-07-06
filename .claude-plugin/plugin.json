@@ -4,9 +4,5 @@
   "version": "0.5.0",
   "author": { "name": "Swapnil Dubey" },
   "license": "MIT",
-  "keywords": ["sdlc", "workflow", "autonomous", "agentic", "loop", "tdd", "code-review", "github-projects", "claude-code", "skills"],
-  "dependencies": [
-    { "name": "superpowers", "marketplace": "claude-plugins-official" },
-    { "name": "code-review", "marketplace": "claude-plugins-official" }
-  ]
+  "keywords": ["sdlc", "workflow", "autonomous", "agentic", "loop", "tdd", "code-review", "github-projects", "claude-code", "skills"]
 }

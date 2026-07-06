@@ -1,6 +1,7 @@
-"""Lock the README's pipeline documentation: it must name all 7 phases, document both companion
-plugins it depends on, and explain the dependency mechanism (auto-install + the fix path). Stable
-anchors only (phase names, plugin names, documented field/error names) — not prose wording."""
+"""Lock the README's pipeline documentation: it must name all 7 phases, document both optional
+companion plugins, and make clear they're an optional enhancement backed by the portable executors —
+not hard dependencies. Stable anchors only (phase names, plugin names, documented terms) — not prose
+wording."""
 import pathlib
 
 README = (pathlib.Path(__file__).resolve().parent.parent / "README.md").read_text()
@@ -13,7 +14,7 @@ def test_documents_all_seven_phases():
 
 def test_distinguishes_shipped_plan_review_from_companions():
     assert "sdlc-plan-review" in README                      # the gate this kit ships
-    assert "superpowers" in README and "code-review" in README  # the companions it relies on
+    assert "superpowers" in README and "code-review" in README  # the optional companions
 
 
 def test_documents_both_backlog_sources():
@@ -29,7 +30,7 @@ def test_documents_optional_knowledge_graph():
     assert ".sdlc/knowledge/" in README                      # the corpus (research + analysis)
 
 
-def test_documents_dependency_mechanism_and_fix_path():
-    assert "allowCrossMarketplaceDependenciesOn" in README   # the allowlist that makes it resolve
-    assert "claude-plugins-official" in README                # the marketplace the companions live in
-    assert "dependency-unsatisfied" in README                 # the failure mode + documented fix path
+def test_documents_companions_as_optional_with_portable_fallback():
+    assert "optional" in README.lower()                       # companions are not required
+    assert "claude-plugins-official" in README                # where to get them if you want them
+    assert "portable" in README.lower()                       # the sdlc-* executors that run without them
