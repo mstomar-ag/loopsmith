@@ -87,3 +87,35 @@ def test_orchestrators_wire_model_selection():
     goal = (sk / "sdlc-goal" / "SKILL.md").read_text()
     assert "predict.py" in loop and "resolve" in loop and "subagent" in loop
     assert "predict.py" in goal and "model_selection" in goal
+
+
+# --- effort axis + per-step resolution (0.6) ---
+
+def test_effort_axis_low_medium_high():
+    m = _mod()
+    assert m.predict_effort("run the tests for the slice") == "low"
+    assert m.predict_effort("watch the job status and poll") == "low"
+    assert m.predict_effort("debug the race condition in the scheduler") == "high"
+    assert m.predict_effort("add a retry to the http client") == "medium"
+
+
+def test_resolve_step_gated_by_config(tmp_path):
+    import json
+    m = _mod()
+    base = tmp_path / ".sdlc"; base.mkdir()
+    base.joinpath("config.json").write_text(json.dumps({"model_selection": "off"}))
+    assert m.resolve_step("run the tests", str(base)) is None          # off → None
+    base.joinpath("config.json").write_text(json.dumps({"model_selection": "auto"}))
+    pair = m.resolve_step("run the tests", str(base))
+    assert pair == {"model": "sonnet", "effort": "low"}
+
+
+def test_resolve_cli_output_stays_backward_compatible(tmp_path, capsys):
+    import json
+    m = _mod()
+    base = tmp_path / ".sdlc"; base.mkdir()
+    base.joinpath("config.json").write_text(json.dumps({"model_selection": "auto"}))
+    assert m.main(["predict.py", "resolve", "fix a typo", str(base)]) == 0
+    assert capsys.readouterr().out.strip() == "haiku"                  # bare tier, no pair
+    assert m.main(["predict.py", "resolve-step", "fix a typo", str(base)]) == 0
+    assert capsys.readouterr().out.strip() == "model=haiku effort=low"

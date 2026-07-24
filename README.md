@@ -22,7 +22,7 @@ remembers what it learns in a **self-improving knowledge graph**.
 ## Two ways to run: interactive or autonomous
 
 Both modes drive the **same seven phases** per goal — they differ in who's in the loop and what
-happens at a checkpoint. The always-on hook underpins both.
+happens at a checkpoint. The repo-scoped prompt hook underpins both.
 
 ### `/sdlc-goal <goal>` — interactive
 
@@ -42,11 +42,20 @@ it does not force. It parks on:
 - a hard checkpoint / a decision only you can make,
 - an **irreversible or expensive action** (deploy, delete, overwrite, spend, migrate) — never run
   unattended,
-- a failure it cannot resolve.
+- a hard failure it cannot resolve — recorded as **`failed`** (needs a fix), distinct from
+  parked (needs a decision), so the review queue separates the two.
 
-It halts on a **per-run iteration budget** (`config.json` → `budget.max_iterations`), which resets
-each invocation and is resume-safe (a budget stop, re-run, picks up where it left off). Run
-**`/sdlc-status`** any time for backlog counts (pending / in-progress / done / parked) + whether the
+It halts on the **per-run budgets** (`config.json` → `budget`): `max_iterations` always, plus —
+when set — `max_minutes` (wall-clock from the run's start) and `max_tokens` (against spend the host
+reports via `loop.py spend`; no reports means no token enforcement). All reset each invocation and
+are resume-safe (a budget stop, re-run, picks up where it left off). Run
+**Overnight without babysitting:** `bash skills/sdlc-loop/scripts/supervise.sh .sdlc` wraps the
+loop in a zero-polling supervisor — blocked while a session runs, and on exit it classifies the
+tail: loop finished → stop; per-run budget → relaunch; **usage-limit exhaustion → sleeps until the
+stated reset time (+ jitter) and relaunches**; unknown crash → capped escalating backoff. Stop it
+any time with `touch .sdlc/state/supervisor.stop`. (Sleeping *machine* ≠ sleeping process — on a
+macOS laptop run it under `caffeinate -is`.) Run
+**`/sdlc-status`** any time for backlog counts (pending / in-progress / done / parked / failed) + whether the
 review queue needs attention.
 
 | | `/sdlc-goal` (interactive) | `/sdlc-loop` (autonomous) |
@@ -100,7 +109,8 @@ LoopSmith's own; no companion ships it.
 /sdlc-loop            # watch it run Goal → Research → … → Review end-to-end
 ```
 
-That installs the spine **globally** — the hook then fires in every project; `/sdlc-init` scaffolds
+That installs the plugin machine-wide, but the hook only speaks in repos that adopt the spine
+(scoped to `.sdlc/` presence); `/sdlc-init` scaffolds
 each repo's `.sdlc/` layer and is safe to re-run. If the `superpowers` + `code-review` companions are
 **already** in your plugin list, LoopSmith uses them automatically; if not, the portable `sdlc-*`
 executors run the same phases ([details](#companions-optional-enhancement)) — **nothing to install
@@ -122,11 +132,16 @@ Every option LoopSmith provides, at a glance:
 
 | Capability | What it gives you | Command / component |
 |---|---|---|
-| **Always-on guardrail** | Every prompt held to the 7-phase spine — no jumping to code | `hooks/sdlc_gate.sh` (automatic) |
+| **Repo-scoped guardrail** | Every prompt in an adopted repo held to the 7-phase spine — no jumping to code | `hooks/sdlc_gate.sh` (automatic) |
 | **Plan-review gate** | Adversarial review of the plan *before* any edit — the gate `superpowers` doesn't ship | `sdlc-plan-review` |
 | **Strategy-alignment gate** | A plan that contradicts your stated strategy / non-goals is blocked (FIX-FIRST) | `sdlc-plan-review` + north-star |
 | **Two ways to start** | **Drop-in** (existing repo) or **vision-first** (start from a product vision) | `/sdlc-init`, `/sdlc-vision` |
 | **Two ways to run** | **Interactive** (approve each gate) or **autonomous** (park-and-continue over a backlog) | `/sdlc-goal`, `/sdlc-loop` |
+| **Hard plan-gate (opt-in)** | With `gates.hard_plan_gate.enabled`, a source edit is mechanically DENIED until a fresh plan exists under `.sdlc/plans/` (`touch .sdlc/.allow-direct-edits` for a deliberate bypass) | `hooks/plan_gate.sh` |
+| **Machine-checked done** | With `verify.enforce`, "done" is refused until the goal's proving command passes THIS run | `loop.py verify` |
+| **Bidirectional report card** | Declare your pipeline's stages once; every stage gets a forward (nothing dropped) + reverse (nothing invented) lane — uninstrumented lanes read ABSENT, never green — with a recurrence delta across runs | `.sdlc/pipeline.json` + `pipeline.py card` |
+| **Model + effort auto-selection (opt-in)** | Per-goal ceiling AND per-step downgrade: mechanical steps run on a cheaper tier/effort (`model_selection: "auto"`, default off) | `predict.py resolve / resolve-step` |
+| **Findings become work** | The card's failing signals become `proposed` goals (proof-of-fix pre-wired); the loop never runs one until you promote it | `pipeline.py propose` |
 | **Pluggable backlog** | Local goal files, GitHub issues, or a GitHub **Projects v2 board** | `discovery.source` |
 | **Board + audit trail** | Cards flow Backlog → In Progress → QC → Done → Blocked; every phase recorded on the issue | `/sdlc-init --github` |
 | **Self-improving knowledge graph** | Captures research + lessons, **tracks what it doesn't know**, prunes itself, and fills gaps | `/sdlc-kg` |
@@ -149,7 +164,7 @@ What you don't get anywhere else, in one kit:
 - **Automatic model selection.** It predicts the right tier per goal — `haiku · sonnet · opus · fable` —
   and runs that goal's phases there, so a rename won't burn Opus and a migration won't crawl on Haiku — you set nothing.
 - **A plan-review gate before any edit.** The plan is adversarially reviewed against the real code first,
-  and the always-on hook won't let the agent skip straight to coding. Discipline is automatic, not remembered.
+  and the prompt hook won't let the agent skip straight to coding. Discipline is automatic, not remembered.
 - **Your strategy has teeth.** A plan that contradicts your stated strategy or advances a non-goal is blocked
   **FIX-FIRST** against your north-star — so the agent can't quietly build the wrong thing.
 - **An overnight autopilot, not a one-shot.** It drives a whole backlog unattended, parks anything that needs you,
@@ -163,11 +178,29 @@ What you don't get anywhere else, in one kit:
 
 ---
 
+## Feature flags at a glance
+
+Everything optional ships OFF — `/sdlc-doctor` prints this dashboard live (`doctor.py features`):
+
+| Flag | Default | What it turns on |
+|---|---|---|
+| `model_selection: "auto"` | off | per-goal model ceiling + per-step model/effort downgrade |
+| `verify: {"enforce": true}` | off | `record done` refused without fresh machine evidence (`loop.py verify`) |
+| `gates.hard_plan_gate.enabled` | off | source edits mechanically denied without a fresh `.sdlc/plans/*.md` |
+| `.sdlc/pipeline.json` | absent | the bidirectional report card + `propose` (findings → groomable goals) |
+| `budget.max_minutes` / `max_tokens` | unset | wall-clock / host-reported token ceilings (iterations always enforce) |
+| `knowledge_graph.enabled` | off | research capture + the self-improving graph |
+| `LOOPSMITH_GATE_GLOBAL=1` (env) | unset | restores the pre-0.6 always-on prompt gate |
+
 ## How it works
 
-LoopSmith installs one always-on hook (`hooks/sdlc_gate.sh`, wired as a `UserPromptSubmit` hook).
-On every prompt it classifies intent with fast, deterministic regex — **no LLM** — and injects the
-matching SDLC directive:
+LoopSmith installs one hook (`hooks/sdlc_gate.sh`, wired as a `UserPromptSubmit` hook). It is
+**scoped per repo**: it only speaks in a project that has adopted the spine (an `.sdlc/` directory
+exists — i.e. you ran `/sdlc-init`); in any other repo it is a silent no-op, so installing the
+plugin machine-wide never injects policy into unrelated projects. Set `LOOPSMITH_GATE_GLOBAL=1`
+to restore the old always-on behavior everywhere. In an adopted repo, on every prompt it
+classifies intent with fast, deterministic regex — **no LLM** — and injects the matching SDLC
+directive:
 
 - **code change / implementation** → "do NOT jump to editing; run the full spine from the GOAL and
   pass PLAN-REVIEW before any edit."
@@ -199,7 +232,7 @@ flowchart TB
 
 ### How a prompt falls through the phases
 
-A prompt enters through the always-on hook, which routes by intent. Code work then falls through the
+A prompt enters through the repo-scoped prompt hook, which routes by intent. Code work then falls through the
 seven phases — with two **gates** that can send it back, and a **park** exit for anything that needs you:
 
 ```mermaid

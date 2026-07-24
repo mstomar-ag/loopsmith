@@ -14,7 +14,7 @@ Two tiers:
   python3 evals/run.py           # Tier 1: score the corpus, gate on drift vs baseline
   python3 evals/run.py --live    # + Tier 2 (prints the parked notice until an LLM is wired)
 """
-import sys, json, pathlib, subprocess
+import os, sys, json, pathlib, subprocess
 
 HERE = pathlib.Path(__file__).resolve().parent
 ROOT = HERE.parent
@@ -27,9 +27,14 @@ _MARKER = {"code": "CODE CHANGE", "ask": "READ-ONLY", "standard": "GOAL-BASED SD
 
 
 def _hook_run(prompt):
-    """Inject one prompt through the real hook, return its stdout (the JSON envelope)."""
+    """Inject one prompt through the real hook, return its stdout (the JSON envelope).
+
+    The evals measure the intent CLASSIFIER, which only runs in an adopted repo
+    (per-repo scoping, 0.6) — so pin the global escape hatch to score it
+    hermetically, independent of the runner's cwd."""
     return subprocess.run(["bash", str(HOOK)], input=json.dumps({"prompt": prompt}),
-                          capture_output=True, text=True).stdout
+                          capture_output=True, text=True,
+                          env={**os.environ, "LOOPSMITH_GATE_GLOBAL": "1"}).stdout
 
 
 def hook_directive(prompt, run=None):

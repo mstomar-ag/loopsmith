@@ -63,7 +63,55 @@ def check(sdlc_dir=".sdlc", run=None):
     return out
 
 
+def features(sdlc_dir=".sdlc"):
+    """The capability dashboard: every optional feature, its CURRENT state, and the one-line
+    enable. Informational (never a failure) — the answer to "what is on right now?"."""
+    import os
+    cfg = _cfg(sdlc_dir)
+    base = pathlib.Path(sdlc_dir)
+    budget = cfg.get("budget") or {}
+    verify = cfg.get("verify") or {}
+    gate = (cfg.get("gates") or {}).get("hard_plan_gate") or {}
+    rows = [
+        ("model+effort auto-selection",
+         "AUTO (per-goal `resolve` + per-step `resolve-step`)"
+         if (cfg.get("model_selection") or "off") == "auto" else "off",
+         'config: "model_selection": "auto"'),
+        ("machine-checked done (verify.enforce)",
+         "ON — `record done` refused without fresh `loop.py verify` evidence"
+         if verify.get("enforce") is True else "off (prose gate only)",
+         'config: "verify": {"enforce": true}'),
+        ("hard plan-gate (deny source edits w/o fresh plan)",
+         f"ON ({gate.get('plan_freshness_hours', 24)}h window)" if gate.get("enabled") is True else "off (prompt-gate reminder only)",
+         'config: "gates": {"hard_plan_gate": {"enabled": true}}'),
+        ("pipeline report card + propose",
+         "DECLARED (.sdlc/pipeline.json present)" if (base / "pipeline.json").exists() else "not declared",
+         "declare stages in .sdlc/pipeline.json, then: pipeline.py card .sdlc"),
+        ("budgets",
+         "iterations=%s minutes=%s tokens=%s" % (
+             budget.get("max_iterations", 20),
+             budget.get("max_minutes") or "off",
+             ("%s (host-reported via loop.py spend)" % budget["max_tokens"]) if budget.get("max_tokens") else "off"),
+         'config: "budget": {"max_minutes": N, "max_tokens": N}'),
+        ("prompt-gate scope",
+         "GLOBAL (env override)" if os.environ.get("LOOPSMITH_GATE_GLOBAL") == "1"
+         else "repo-scoped (speaks only where .sdlc/ exists)",
+         "env LOOPSMITH_GATE_GLOBAL=1 restores always-on"),
+        ("knowledge graph",
+         "enabled" if (cfg.get("knowledge_graph") or {}).get("enabled") is True else "off",
+         'config: "knowledge_graph": {"enabled": true}'),
+        ("backlog source",
+         (cfg.get("discovery") or {}).get("source") or "local-goals",
+         'config: "discovery": {"source": "github"}'),
+    ]
+    return rows
+
+
 def main(argv):
+    if len(argv) >= 2 and argv[1] == "features":
+        for name, state, enable in features(argv[2] if len(argv) > 2 else ".sdlc"):
+            print(f"  {name}: {state}\n      enable/change: {enable}")
+        return 0
     if len(argv) >= 2 and argv[1] == "check":
         checks = check(argv[2] if len(argv) > 2 else ".sdlc")
         gaps = [c for c in checks if not c["ok"]]
@@ -71,8 +119,11 @@ def main(argv):
             print(f"  [{'OK ' if c['ok'] else 'MISSING'}] {c['name']}" + ("" if c["ok"] else f"  ->  {c['fix']}"))
         print(f"\nsdlc-doctor: {len(checks) - len(gaps)}/{len(checks)} ready"
               + ("." if not gaps else f"; {len(gaps)} need the one-liner shown above."))
+        print("\nfeatures (doctor.py features for the enable one-liners):")
+        for name, state, _ in features(argv[2] if len(argv) > 2 else ".sdlc"):
+            print(f"  {name}: {state}")
         return 0
-    print("usage: doctor.py check [sdlc_dir]", file=sys.stderr)
+    print("usage: doctor.py check [sdlc_dir] | features [sdlc_dir]", file=sys.stderr)
     return 2
 
 

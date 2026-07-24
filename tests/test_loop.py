@@ -129,3 +129,115 @@ def test_cli_start_next_record_and_budget():
         g = run("next", base).stdout.strip(); assert g.endswith("0001.md")
         run("record", base, g, "done")
         assert run("next", base).stdout.strip() == "BUDGET"            # per-run budget=1 spent
+
+
+# --- real budgets (0.6): max_minutes / max_tokens enforce when configured ---
+
+def _write_cfg(base, budget):
+    (pathlib.Path(base) / "config.json").write_text(json.dumps({"budget": budget}))
+
+
+def test_wall_clock_budget_halts_via_next():
+    with tempfile.TemporaryDirectory() as d:
+        base = _backlog(d, 3)
+        _write_cfg(base, {"max_iterations": 10, "max_minutes": 1})
+        lp = _loop()
+        # a run that started 2 minutes ago — the STATE.md cursor is authoritative
+        (pathlib.Path(base) / "state" / "STATE.md").write_text(
+            "iteration: 0\nrun_iteration: 0\n"
+            f"run_started_at: {int(lp.time.time()) - 120}\nrun_tokens: 0\nlast_run: none\n")
+        src = lp.sources.get_source(base, lp.state.load_config(base))
+        assert lp._next(base, src, lp.state.load_config(base)) == ("BUDGET", None)
+
+
+def test_token_budget_halts_when_signal_reported():
+    with tempfile.TemporaryDirectory() as d:
+        base = _backlog(d, 3)
+        _write_cfg(base, {"max_iterations": 10, "max_tokens": 1000})
+        lp = _loop()
+        lp.state.start_run(base)
+        lp.state.add_tokens(base, 600)
+        lp.state.add_tokens(base, 500)          # cumulative 1100 >= 1000
+        src = lp.sources.get_source(base, lp.state.load_config(base))
+        assert lp._next(base, src, lp.state.load_config(base)) == ("BUDGET", None)
+
+
+def test_token_budget_without_reports_never_enforces():
+    # max_tokens set but the host never reported spend → run_tokens stays 0 → no stop
+    with tempfile.TemporaryDirectory() as d:
+        base = _backlog(d, 1)
+        _write_cfg(base, {"max_iterations": 10, "max_tokens": 1000})
+        lp = _loop()
+        lp.state.start_run(base)
+        src = lp.sources.get_source(base, lp.state.load_config(base))
+        kind, goal = lp._next(base, src, lp.state.load_config(base))
+        assert kind == "goal" and goal.endswith("0001.md")
+
+
+def test_absent_optional_budget_keys_enforce_nothing():
+    # pre-0.6 config shape (iterations only) behaves exactly as before, whatever the counters say
+    with tempfile.TemporaryDirectory() as d:
+        base = _backlog(d, 1)
+        _write_cfg(base, {"max_iterations": 10})
+        lp = _loop()
+        (pathlib.Path(base) / "state" / "STATE.md").write_text(
+            "iteration: 0\nrun_iteration: 0\nrun_started_at: 1\nrun_tokens: 999999\nlast_run: none\n")
+        src = lp.sources.get_source(base, lp.state.load_config(base))
+        kind, _ = lp._next(base, src, lp.state.load_config(base))
+        assert kind == "goal"
+
+
+def test_start_run_resets_all_run_counters():
+    with tempfile.TemporaryDirectory() as d:
+        base = _backlog(d, 1)
+        lp = _loop()
+        lp.state.add_tokens(base, 500)
+        lp.state.start_run(base)
+        cur = lp.state.load_cursor(base)
+        assert cur["run_tokens"] == 0 and cur["run_iteration"] == 0
+        assert cur["run_started_at"] > 0     # the wall-clock anchor is stamped
+
+
+def test_spend_cli_verb_accumulates():
+    with tempfile.TemporaryDirectory() as d:
+        base = _backlog(d, 1)
+        for n in ("120", "80"):
+            proc = subprocess.run([sys.executable, str(S / "loop.py"), "spend", base, n],
+                                  capture_output=True, text=True)
+            assert proc.returncode == 0, proc.stderr
+        lp = _loop()
+        assert lp.state.load_cursor(base)["run_tokens"] == 200
+
+
+# --- failed != parked (0.6): a fix-needed lane distinct from decide-needed ---
+
+def test_failed_result_gets_failed_status_and_own_queue_tag():
+    with tempfile.TemporaryDirectory() as d:
+        base = _backlog(d, 2)
+        rg = lambda g: ("failed", "tests will not pass") if g.endswith("0001.md") else ("done", "")
+        res = _loop().run_loop(base, rg)
+        assert res["done"] == 1 and res["failed"] == 1 and res["parked"] == 0
+        goal_text = (pathlib.Path(base) / "goals" / "0001.md").read_text()
+        assert "status: failed" in goal_text
+        queue = (pathlib.Path(base) / "state" / "review-queue.md").read_text()
+        assert "needs: a fix" in queue and "tests will not pass" in queue
+
+
+def test_parked_and_failed_are_counted_separately():
+    with tempfile.TemporaryDirectory() as d:
+        base = _backlog(d, 3)
+        results = {"0001.md": ("parked", "deploy gate"), "0002.md": ("failed", "red suite")}
+        rg = lambda g: results.get(pathlib.Path(g).name, ("done", ""))
+        res = _loop().run_loop(base, rg)
+        assert res == {**res, "done": 1, "parked": 1, "failed": 1}
+
+
+def test_discovery_skips_failed_goals():
+    with tempfile.TemporaryDirectory() as d:
+        base = _backlog(d, 2)
+        (pathlib.Path(base) / "goals" / "0001.md").write_text(
+            "---\nid: 0001\nstatus: failed\n---\nx\n")
+        lp = _loop()
+        src = lp.sources.get_source(base, lp.state.load_config(base))
+        kind, goal = lp._next(base, src, lp.state.load_config(base))
+        assert kind == "goal" and goal.endswith("0002.md")

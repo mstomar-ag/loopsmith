@@ -1,8 +1,10 @@
 """Park-&-continue loop driver. run_loop ties the backlog source + run_goal + state; start/next/record are
-the agent's CLI hooks into the same primitives. Budget v1 = per-run max_iterations (run_iteration,
-reset each invocation). max_tokens/max_minutes deferred: no host spend signal / wall-clock yet.
-The irreversible-action gate is enforced by the /sdlc-loop SKILL.md prose, not here."""
-import sys, pathlib, importlib.util
+the agent's CLI hooks into the same primitives. Budgets (all per-run, reset each invocation):
+max_iterations always enforces; max_minutes enforces by wall-clock from the run's start; max_tokens
+enforces against the host-REPORTED spend counter (`loop.py spend <dir> <n>` — the loop never measures
+spend itself; no reports == no enforcement). An absent/zero key enforces nothing, so a config without
+it behaves exactly as before. The irreversible-action gate is enforced by /sdlc-loop SKILL.md prose."""
+import sys, pathlib, importlib.util, time
 
 _HERE = pathlib.Path(__file__).resolve().parent
 
@@ -16,14 +18,28 @@ state = _load("state")
 sources = _load("sources")          # backlog source: local files or GitHub issues (config-selected)
 
 
+def _budget_spent(cursor, budget):
+    """True when ANY configured ceiling is reached. Absent/zero keys never enforce —
+    a config without them behaves exactly as before this check existed."""
+    if cursor["run_iteration"] >= budget.get("max_iterations", 20):
+        return True
+    minutes = budget.get("max_minutes")
+    if minutes and cursor["run_started_at"]:
+        if (time.time() - cursor["run_started_at"]) / 60.0 >= minutes:
+            return True
+    tokens = budget.get("max_tokens")
+    if tokens and cursor["run_tokens"] >= tokens:
+        return True
+    return False
+
+
 def _next(sdlc_dir, source, config):
     """(kind, goal): 'goal' (+marks in_progress, the commit point), 'DONE' (drained), 'BUDGET'.
     Drained backlog reports DONE even if budget is also spent (empty wins the tie)."""
     goal = source.next_pending()
     if goal is None:
         return ("DONE", None)
-    run_iteration = state.load_cursor(sdlc_dir)["run_iteration"]
-    if run_iteration >= config.get("budget", {}).get("max_iterations", 20):
+    if _budget_spent(state.load_cursor(sdlc_dir), config.get("budget", {})):
         return ("BUDGET", None)
     source.mark_in_progress(goal)
     return ("goal", goal)
@@ -32,18 +48,72 @@ def _next(sdlc_dir, source, config):
 def _record(sdlc_dir, source, goal, result, detail=""):
     if result == "done":
         source.complete(goal)
-    else:                                        # parked or failed
+    elif result == "failed" and hasattr(source, "fail"):
+        source.fail(goal, detail or result)      # hasattr: a source without fail() parks instead
+    else:                                        # parked (or failed on a fail-less source)
         source.park(goal, detail or result)
     cur = state.load_cursor(sdlc_dir)
     state.save_cursor(sdlc_dir, cur["iteration"] + 1, cur["run_iteration"] + 1,
                       f"last: {pathlib.Path(goal).name} -> {result}")
 
 
+def _evidence_path(sdlc_dir, goal):
+    stem = pathlib.Path(goal).stem if str(goal).endswith(".md") else str(goal)
+    return pathlib.Path(sdlc_dir) / "state" / "verify" / f"{stem}.json"
+
+
+def verify_goal(sdlc_dir, goal):
+    """Run the goal's proving command and persist MACHINE evidence (sdlc-verify's
+    prose gate, made checkable). Command source: goal frontmatter `verify_command`
+    (local mode), else config `verify.command`.
+    Exit: 0 verified · 1 the command failed · 3 no command declared (honest absence)."""
+    import json as _json, subprocess
+    config = state.load_config(sdlc_dir)
+    cmd = None
+    goal_path = pathlib.Path(str(goal))
+    if goal_path.suffix == ".md" and goal_path.exists():
+        cmd = state.frontmatter.get(goal_path.read_text(), "verify_command")
+    cmd = cmd or (config.get("verify") or {}).get("command") or None
+    if not cmd:
+        print("NO-COMMAND (set goal frontmatter `verify_command` or config `verify.command`)",
+              file=sys.stderr)
+        return 3
+    # Proving commands run at the PROJECT root (the parent of .sdlc) — same resolution
+    # rule as pipeline.py checks — not at whatever cwd the caller happens to be in.
+    root = str(pathlib.Path(sdlc_dir).resolve().parent)
+    proc = subprocess.run(cmd, shell=True, capture_output=True, text=True, cwd=root)
+    ev = _evidence_path(sdlc_dir, goal)
+    ev.parent.mkdir(parents=True, exist_ok=True)
+    tail = (proc.stdout + proc.stderr).strip().splitlines()[-5:]
+    ev.write_text(_json.dumps({"command": cmd, "exit": proc.returncode,
+                               "at": int(time.time()), "tail": tail}, indent=2))
+    print(f"{'VERIFIED' if proc.returncode == 0 else 'FAILED'} exit={proc.returncode} evidence={ev}")
+    return 0 if proc.returncode == 0 else 1
+
+
+def _done_refusal(sdlc_dir, goal):
+    """None when fresh passing evidence exists for this goal, else the reason to refuse.
+    Fresh = produced at/after this run's start (a stale green from yesterday proves nothing)."""
+    import json as _json
+    ev = _evidence_path(sdlc_dir, goal)
+    if not ev.exists():
+        return "no verify evidence for this goal"
+    try:
+        data = _json.loads(ev.read_text())
+    except Exception:
+        return "verify evidence is unreadable"
+    if data.get("exit") != 0:
+        return f"last verify FAILED (exit {data.get('exit')})"
+    if data.get("at", 0) < state.load_cursor(sdlc_dir)["run_started_at"]:
+        return "verify evidence predates this run"
+    return None
+
+
 def run_loop(sdlc_dir, run_goal):
     state.start_run(sdlc_dir)                       # reset per-run budget (resume-safe)
     config = state.load_config(sdlc_dir)
     source = sources.get_source(sdlc_dir, config)   # one source per run (e.g. github labels ensured once)
-    done = parked = 0
+    done = parked = failed = 0
     while True:
         kind, goal = _next(sdlc_dir, source, config)
         if kind == "DONE":
@@ -53,8 +123,9 @@ def run_loop(sdlc_dir, run_goal):
         result, detail = run_goal(goal)
         _record(sdlc_dir, source, goal, result, detail)
         done += (result == "done")
-        parked += (result != "done")
-    return {"done": done, "parked": parked,
+        failed += (result == "failed")
+        parked += (result not in ("done", "failed"))
+    return {"done": done, "parked": parked, "failed": failed,
             "iterations": state.load_cursor(sdlc_dir)["iteration"], "stopped": stopped}
 
 
@@ -77,10 +148,23 @@ def main(argv):
         return 0
     if len(argv) >= 5 and argv[1] == "record":
         config = state.load_config(argv[2])
+        # Machine done_when (opt-in): with verify.enforce on, a `done` needs fresh
+        # passing evidence from `loop.py verify` — the sdlc-verify prose gate, enforced.
+        if argv[4] == "done" and (config.get("verify") or {}).get("enforce") is True:
+            refusal = _done_refusal(argv[2], argv[3])
+            if refusal:
+                print(f"REFUSED: {refusal} — run `loop.py verify {argv[2]} <goal>` first "
+                      "(config verify.enforce is on)", file=sys.stderr)
+                return 4
         _record(argv[2], sources.get_source(argv[2], config), argv[3], argv[4],
                 argv[5] if len(argv) > 5 else ""); return 0
+    if len(argv) >= 4 and argv[1] == "spend":       # host-reported token spend → budget.max_tokens
+        state.add_tokens(argv[2], argv[3]); return 0
+    if len(argv) >= 4 and argv[1] == "verify":      # machine done_when: run + persist evidence
+        return verify_goal(argv[2], argv[3])
     print("usage: loop.py start <dir> | next <dir> | qc <dir> <goal> | "
-          "note <dir> <goal> <text> | record <dir> <goal> done|parked [reason]", file=sys.stderr)
+          "note <dir> <goal> <text> | record <dir> <goal> done|parked|failed [reason] | "
+          "spend <dir> <tokens> | verify <dir> <goal>", file=sys.stderr)
     return 2
 
 

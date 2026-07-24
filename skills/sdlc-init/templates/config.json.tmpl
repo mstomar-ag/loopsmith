@@ -22,10 +22,12 @@
   },
   "budget": { "max_iterations": 20, "max_tokens": 500000, "max_minutes": 480 },
   "gates": {
+    "hard_plan_gate": { "enabled": false, "plan_freshness_hours": 24 },
     "irreversible_actions": ["deploy", "delete", "overwrite", "spend", "migrate"],
     "on_block": "park"
   },
-  "verify": { "command": "" },
+  "verify": { "command": "", "enforce": false },
+  
   "companions": "auto",
   "model_selection": "off",
   "_model_selection_options": "off (phases run at the session model) | auto (predict a tier per goal via /sdlc-model, run that goal's phases as subagents at it)",
