@@ -100,7 +100,8 @@ LoopSmith's own; no companion ships it.
 /sdlc-loop            # watch it run Goal → Research → … → Review end-to-end
 ```
 
-That installs the spine **globally** — the hook then fires in every project; `/sdlc-init` scaffolds
+That installs the plugin machine-wide, but the hook only speaks in repos that adopt the spine
+(scoped to `.sdlc/` presence); `/sdlc-init` scaffolds
 each repo's `.sdlc/` layer and is safe to re-run. If the `superpowers` + `code-review` companions are
 **already** in your plugin list, LoopSmith uses them automatically; if not, the portable `sdlc-*`
 executors run the same phases ([details](#companions-optional-enhancement)) — **nothing to install
@@ -122,7 +123,7 @@ Every option LoopSmith provides, at a glance:
 
 | Capability | What it gives you | Command / component |
 |---|---|---|
-| **Always-on guardrail** | Every prompt held to the 7-phase spine — no jumping to code | `hooks/sdlc_gate.sh` (automatic) |
+| **Repo-scoped guardrail** | Every prompt in an adopted repo held to the 7-phase spine — no jumping to code | `hooks/sdlc_gate.sh` (automatic) |
 | **Plan-review gate** | Adversarial review of the plan *before* any edit — the gate `superpowers` doesn't ship | `sdlc-plan-review` |
 | **Strategy-alignment gate** | A plan that contradicts your stated strategy / non-goals is blocked (FIX-FIRST) | `sdlc-plan-review` + north-star |
 | **Two ways to start** | **Drop-in** (existing repo) or **vision-first** (start from a product vision) | `/sdlc-init`, `/sdlc-vision` |
