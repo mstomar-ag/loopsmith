@@ -24,10 +24,15 @@ Then repeat until the helper says stop:
    pre-flight to pull a cited brief from the graph + past issues + conventions, so the goal starts
    informed by history instead of a flushed window (no-op when the KG is off).
    **Match the model to the goal** — run `python3 "${CLAUDE_SKILL_DIR}/../sdlc-model/scripts/predict.py"
-   resolve "$goal" .sdlc`. If it prints a tier (`haiku`/`sonnet`/`opus`/`fable`), run this goal's phases
-   inside a **subagent with that `model`** (the Task tool's model override — the session can't switch its
-   own model); if it prints `off` (the default, or you're off-Claude), run the phases inline as usual.
-   One tier for the whole goal. Then read the goal and
+   resolve "$goal" .sdlc`. If it prints a tier (`haiku`/`sonnet`/`opus`/`fable`), that tier is the GOAL's
+   ceiling — run its phases inside a **subagent with that `model`** (the Task tool's model override —
+   the session can't switch its own model); if it prints `off` (the default, or you're off-Claude),
+   run the phases inline as usual. **Per-STEP downgrade:** once the plan exists, resolve each plan
+   step too — `python3 "${CLAUDE_SKILL_DIR}/../sdlc-model/scripts/predict.py" resolve-step "<step
+   text>" .sdlc` prints `model=<tier> effort=<low|medium|high>` — and run a MECHANICAL step (run the
+   tests, a watcher/poll, lint) in a subagent at ITS cheaper tier/effort instead of the goal
+   ceiling. Where the host's subagent API takes a reasoning-effort parameter, pass the effort;
+   otherwise the tier alone. Never run a step ABOVE the goal ceiling. Then read the goal and
    run it through the full SDLC (research → plan → plan-review →
    implement → review) — each phase via its **executor** (the `superpowers`/`code-review` companion on
    Claude if installed, else LoopSmith's portable `sdlc-brainstorm`/`sdlc-plan`/`sdlc-implement`/
