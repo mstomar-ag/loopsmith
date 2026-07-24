@@ -6,6 +6,17 @@
 # back to the standard policy. Always emits valid single-line JSON.
 set -uo pipefail   # (no -e on purpose: the script MUST always reach the JSON emit; -e could abort early and drop the policy)
 
+# Per-repo scoping: the SDLC directive belongs to repos that ADOPTED the spine
+# (an .sdlc/ directory exists). In any other repo this hook is a silent no-op —
+# a machine-wide plugin install must not inject policy into unrelated projects
+# or fight a repo's own discipline. LOOPSMITH_GATE_GLOBAL=1 restores the
+# pre-0.6 always-on behavior for anyone who relied on the universal reminder.
+# Same guard pattern as research_capture.py (absent config == off, fail-open).
+if [ "${LOOPSMITH_GATE_GLOBAL:-0}" != "1" ] && [ ! -d "${CLAUDE_PROJECT_DIR:-$PWD}/.sdlc" ]; then
+  printf '{"hookSpecificOutput":{"hookEventName":"UserPromptSubmit","additionalContext":""}}\n'
+  exit 0
+fi
+
 STD_MSG='GOAL-BASED SDLC — standing policy. For any non-trivial or implementation task, do NOT jump straight to coding; follow the flow and state which step you are on. (1) GOAL — restate the objective as one concrete goal (superpowers:brainstorming for feature/creative work). (2) RESEARCH — blast radius, affected files, existing patterns, constraints. (3) PLAN — write the plan (steps/files/tests/DoD) via superpowers:writing-plans. (4) PLAN-REVIEW — adversarially review the plan BEFORE implementing; never skip. (5) IMPLEMENT — superpowers:test-driven-development + executing-plans. (6) REVIEW — code-review + superpowers:verification-before-completion (evidence before claims). (7) RETROSPECTIVE — capture lessons. Issue hygiene: 1 type + >=1 component/area label; lock critical insights as you make them. Trivial, conversational, or read-only requests may be answered directly — but say so explicitly. Phase skills name the superpowers plugin (recommended companion); without it, the phase names still guide.'
 
 if ! command -v python3 >/dev/null 2>&1; then

@@ -22,7 +22,7 @@ remembers what it learns in a **self-improving knowledge graph**.
 ## Two ways to run: interactive or autonomous
 
 Both modes drive the **same seven phases** per goal — they differ in who's in the loop and what
-happens at a checkpoint. The always-on hook underpins both.
+happens at a checkpoint. The repo-scoped prompt hook underpins both.
 
 ### `/sdlc-goal <goal>` — interactive
 
@@ -149,7 +149,7 @@ What you don't get anywhere else, in one kit:
 - **Automatic model selection.** It predicts the right tier per goal — `haiku · sonnet · opus · fable` —
   and runs that goal's phases there, so a rename won't burn Opus and a migration won't crawl on Haiku — you set nothing.
 - **A plan-review gate before any edit.** The plan is adversarially reviewed against the real code first,
-  and the always-on hook won't let the agent skip straight to coding. Discipline is automatic, not remembered.
+  and the prompt hook won't let the agent skip straight to coding. Discipline is automatic, not remembered.
 - **Your strategy has teeth.** A plan that contradicts your stated strategy or advances a non-goal is blocked
   **FIX-FIRST** against your north-star — so the agent can't quietly build the wrong thing.
 - **An overnight autopilot, not a one-shot.** It drives a whole backlog unattended, parks anything that needs you,
@@ -165,9 +165,13 @@ What you don't get anywhere else, in one kit:
 
 ## How it works
 
-LoopSmith installs one always-on hook (`hooks/sdlc_gate.sh`, wired as a `UserPromptSubmit` hook).
-On every prompt it classifies intent with fast, deterministic regex — **no LLM** — and injects the
-matching SDLC directive:
+LoopSmith installs one hook (`hooks/sdlc_gate.sh`, wired as a `UserPromptSubmit` hook). It is
+**scoped per repo**: it only speaks in a project that has adopted the spine (an `.sdlc/` directory
+exists — i.e. you ran `/sdlc-init`); in any other repo it is a silent no-op, so installing the
+plugin machine-wide never injects policy into unrelated projects. Set `LOOPSMITH_GATE_GLOBAL=1`
+to restore the old always-on behavior everywhere. In an adopted repo, on every prompt it
+classifies intent with fast, deterministic regex — **no LLM** — and injects the matching SDLC
+directive:
 
 - **code change / implementation** → "do NOT jump to editing; run the full spine from the GOAL and
   pass PLAN-REVIEW before any edit."
@@ -199,7 +203,7 @@ flowchart TB
 
 ### How a prompt falls through the phases
 
-A prompt enters through the always-on hook, which routes by intent. Code work then falls through the
+A prompt enters through the repo-scoped prompt hook, which routes by intent. Code work then falls through the
 seven phases — with two **gates** that can send it back, and a **park** exit for anything that needs you:
 
 ```mermaid

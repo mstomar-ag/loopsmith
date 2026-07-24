@@ -1,16 +1,58 @@
-import json, subprocess, pathlib, pytest
+import json, os, subprocess, pathlib, pytest
 
 HOOK = pathlib.Path(__file__).resolve().parent.parent / "hooks" / "sdlc_gate.sh"
+
+# The classifier tests below exercise the gate's INTENT behavior, which only fires
+# in an adopted repo (or under the global escape hatch). Pinning the escape hatch
+# here keeps them hermetic — independent of the test runner's cwd having .sdlc/.
+_GLOBAL_ENV = {**os.environ, "LOOPSMITH_GATE_GLOBAL": "1"}
 
 
 def _run(prompt):
     proc = subprocess.run(
         ["bash", str(HOOK)],
         input=json.dumps({"prompt": prompt}),
-        capture_output=True, text=True,
+        capture_output=True, text=True, env=_GLOBAL_ENV,
     )
     assert proc.returncode == 0, proc.stderr
     return json.loads(proc.stdout)  # raises if invalid JSON → also tests the invariant
+
+
+# --- per-repo scoping (0.6): adopted repos get the policy, others a silent no-op ---
+
+def _run_scoped(prompt, project_dir):
+    env = {k: v for k, v in os.environ.items() if k != "LOOPSMITH_GATE_GLOBAL"}
+    env["CLAUDE_PROJECT_DIR"] = str(project_dir)
+    proc = subprocess.run(
+        ["bash", str(HOOK)],
+        input=json.dumps({"prompt": prompt}),
+        capture_output=True, text=True, env=env,
+    )
+    assert proc.returncode == 0, proc.stderr
+    return json.loads(proc.stdout)
+
+
+def test_unadopted_repo_is_a_silent_noop(tmp_path):
+    # no .sdlc/ in the project dir → the hook emits a valid, EMPTY envelope
+    out = _run_scoped("implement the parser in parser.py", tmp_path)
+    assert out["hookSpecificOutput"]["additionalContext"] == ""
+
+
+def test_adopted_repo_gets_the_full_policy(tmp_path):
+    (tmp_path / ".sdlc").mkdir()
+    ctx = _run_scoped("implement the parser in parser.py", tmp_path)["hookSpecificOutput"]["additionalContext"]
+    assert "GOAL-BASED SDLC" in ctx and "CODE CHANGE" in ctx
+
+
+def test_global_escape_hatch_restores_always_on(tmp_path):
+    # LOOPSMITH_GATE_GLOBAL=1 injects even with no .sdlc/ anywhere (pre-0.6 behavior)
+    env = {**os.environ, "LOOPSMITH_GATE_GLOBAL": "1", "CLAUDE_PROJECT_DIR": str(tmp_path)}
+    proc = subprocess.run(
+        ["bash", str(HOOK)], input=json.dumps({"prompt": "hello"}),
+        capture_output=True, text=True, env=env,
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert "GOAL-BASED SDLC" in json.loads(proc.stdout)["hookSpecificOutput"]["additionalContext"]
 
 
 def test_output_is_valid_json_with_policy():
@@ -40,7 +82,7 @@ def _run_raw(stdin_text):
     # always-valid-JSON invariant on the malformed-input paths.
     proc = subprocess.run(
         ["bash", str(HOOK)],
-        input=stdin_text, capture_output=True, text=True,
+        input=stdin_text, capture_output=True, text=True, env=_GLOBAL_ENV,
     )
     assert proc.returncode == 0, proc.stderr
     return json.loads(proc.stdout)  # raises if invalid JSON
@@ -93,7 +135,9 @@ def test_prompt_always_emits_valid_json(prompt):
 
 
 def _run_bytes(stdin_bytes):
-    proc = subprocess.run(["bash", str(HOOK)], input=stdin_bytes, capture_output=True)
+    proc = subprocess.run(
+        ["bash", str(HOOK)], input=stdin_bytes, capture_output=True, env=_GLOBAL_ENV,
+    )
     assert proc.returncode == 0, proc.stderr
     return json.loads(proc.stdout)  # raises if invalid JSON (json.loads accepts bytes)
 
