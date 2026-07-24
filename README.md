@@ -44,8 +44,10 @@ it does not force. It parks on:
   unattended,
 - a failure it cannot resolve.
 
-It halts on a **per-run iteration budget** (`config.json` → `budget.max_iterations`), which resets
-each invocation and is resume-safe (a budget stop, re-run, picks up where it left off). Run
+It halts on the **per-run budgets** (`config.json` → `budget`): `max_iterations` always, plus —
+when set — `max_minutes` (wall-clock from the run's start) and `max_tokens` (against spend the host
+reports via `loop.py spend`; no reports means no token enforcement). All reset each invocation and
+are resume-safe (a budget stop, re-run, picks up where it left off). Run
 **`/sdlc-status`** any time for backlog counts (pending / in-progress / done / parked) + whether the
 review queue needs attention.
 

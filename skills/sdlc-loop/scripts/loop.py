@@ -1,8 +1,10 @@
 """Park-&-continue loop driver. run_loop ties the backlog source + run_goal + state; start/next/record are
-the agent's CLI hooks into the same primitives. Budget v1 = per-run max_iterations (run_iteration,
-reset each invocation). max_tokens/max_minutes deferred: no host spend signal / wall-clock yet.
-The irreversible-action gate is enforced by the /sdlc-loop SKILL.md prose, not here."""
-import sys, pathlib, importlib.util
+the agent's CLI hooks into the same primitives. Budgets (all per-run, reset each invocation):
+max_iterations always enforces; max_minutes enforces by wall-clock from the run's start; max_tokens
+enforces against the host-REPORTED spend counter (`loop.py spend <dir> <n>` — the loop never measures
+spend itself; no reports == no enforcement). An absent/zero key enforces nothing, so a config without
+it behaves exactly as before. The irreversible-action gate is enforced by /sdlc-loop SKILL.md prose."""
+import sys, pathlib, importlib.util, time
 
 _HERE = pathlib.Path(__file__).resolve().parent
 
@@ -16,14 +18,28 @@ state = _load("state")
 sources = _load("sources")          # backlog source: local files or GitHub issues (config-selected)
 
 
+def _budget_spent(cursor, budget):
+    """True when ANY configured ceiling is reached. Absent/zero keys never enforce —
+    a config without them behaves exactly as before this check existed."""
+    if cursor["run_iteration"] >= budget.get("max_iterations", 20):
+        return True
+    minutes = budget.get("max_minutes")
+    if minutes and cursor["run_started_at"]:
+        if (time.time() - cursor["run_started_at"]) / 60.0 >= minutes:
+            return True
+    tokens = budget.get("max_tokens")
+    if tokens and cursor["run_tokens"] >= tokens:
+        return True
+    return False
+
+
 def _next(sdlc_dir, source, config):
     """(kind, goal): 'goal' (+marks in_progress, the commit point), 'DONE' (drained), 'BUDGET'.
     Drained backlog reports DONE even if budget is also spent (empty wins the tie)."""
     goal = source.next_pending()
     if goal is None:
         return ("DONE", None)
-    run_iteration = state.load_cursor(sdlc_dir)["run_iteration"]
-    if run_iteration >= config.get("budget", {}).get("max_iterations", 20):
+    if _budget_spent(state.load_cursor(sdlc_dir), config.get("budget", {})):
         return ("BUDGET", None)
     source.mark_in_progress(goal)
     return ("goal", goal)
@@ -79,8 +95,11 @@ def main(argv):
         config = state.load_config(argv[2])
         _record(argv[2], sources.get_source(argv[2], config), argv[3], argv[4],
                 argv[5] if len(argv) > 5 else ""); return 0
+    if len(argv) >= 4 and argv[1] == "spend":       # host-reported token spend → budget.max_tokens
+        state.add_tokens(argv[2], argv[3]); return 0
     print("usage: loop.py start <dir> | next <dir> | qc <dir> <goal> | "
-          "note <dir> <goal> <text> | record <dir> <goal> done|parked [reason]", file=sys.stderr)
+          "note <dir> <goal> <text> | record <dir> <goal> done|parked [reason] | "
+          "spend <dir> <tokens>", file=sys.stderr)
     return 2
 
 

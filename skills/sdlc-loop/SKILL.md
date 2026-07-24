@@ -16,7 +16,10 @@ First, reset the per-run budget: `python3 "${CLAUDE_SKILL_DIR}/scripts/loop.py" 
 Then repeat until the helper says stop:
 
 1. `goal=$(python3 "${CLAUDE_SKILL_DIR}/scripts/loop.py" next .sdlc)`
-2. If output is `DONE` (backlog empty) or `BUDGET` (per-run iteration cap hit) → STOP.
+2. If output is `DONE` (backlog empty) or `BUDGET` (a per-run budget hit: iterations always;
+   wall-clock minutes / reported tokens when `config.json` sets them) → STOP. If the host surfaces
+   token usage to you, report it between goals — `loop.py spend .sdlc <tokens>` — so
+   `budget.max_tokens` can actually enforce; never guess a number (no report = no token cap).
 3. Otherwise: first **recall prior art** — if the knowledge graph is enabled, run the `sdlc-context`
    pre-flight to pull a cited brief from the graph + past issues + conventions, so the goal starts
    informed by history instead of a flushed window (no-op when the KG is off).
