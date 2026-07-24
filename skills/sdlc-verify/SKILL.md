@@ -40,5 +40,5 @@ running it · trusting a subagent's report · "just this once" / "I'm confident"
 **any wording that implies success without having run the check.**
 
 ## In the loop
-Never `loop.py record … done` — or tell the user a goal is done — until its `done_when` is verified with
+With `config.verify.enforce` on, this gate is MACHINE-CHECKED: `loop.py verify .sdlc <goal>` records the evidence and `record done` is refused without it. Never `loop.py record … done` — or tell the user a goal is done — until its `done_when` is verified with
 output. A parked or failed check is an honest outcome; a false "done" is not.
