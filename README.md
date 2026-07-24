@@ -134,6 +134,7 @@ Every option LoopSmith provides, at a glance:
 | **Hard plan-gate (opt-in)** | With `gates.hard_plan_gate.enabled`, a source edit is mechanically DENIED until a fresh plan exists under `.sdlc/plans/` (`touch .sdlc/.allow-direct-edits` for a deliberate bypass) | `hooks/plan_gate.sh` |
 | **Machine-checked done** | With `verify.enforce`, "done" is refused until the goal's proving command passes THIS run | `loop.py verify` |
 | **Bidirectional report card** | Declare your pipeline's stages once; every stage gets a forward (nothing dropped) + reverse (nothing invented) lane — uninstrumented lanes read ABSENT, never green — with a recurrence delta across runs | `.sdlc/pipeline.json` + `pipeline.py card` |
+| **Model + effort auto-selection (opt-in)** | Per-goal ceiling AND per-step downgrade: mechanical steps run on a cheaper tier/effort (`model_selection: "auto"`, default off) | `predict.py resolve / resolve-step` |
 | **Findings become work** | The card's failing signals become `proposed` goals (proof-of-fix pre-wired); the loop never runs one until you promote it | `pipeline.py propose` |
 | **Pluggable backlog** | Local goal files, GitHub issues, or a GitHub **Projects v2 board** | `discovery.source` |
 | **Board + audit trail** | Cards flow Backlog → In Progress → QC → Done → Blocked; every phase recorded on the issue | `/sdlc-init --github` |
@@ -170,6 +171,20 @@ What you don't get anywhere else, in one kit:
   if a discipline signal drops — drift is caught before you ship it.
 
 ---
+
+## Feature flags at a glance
+
+Everything optional ships OFF — `/sdlc-doctor` prints this dashboard live (`doctor.py features`):
+
+| Flag | Default | What it turns on |
+|---|---|---|
+| `model_selection: "auto"` | off | per-goal model ceiling + per-step model/effort downgrade |
+| `verify: {"enforce": true}` | off | `record done` refused without fresh machine evidence (`loop.py verify`) |
+| `gates.hard_plan_gate.enabled` | off | source edits mechanically denied without a fresh `.sdlc/plans/*.md` |
+| `.sdlc/pipeline.json` | absent | the bidirectional report card + `propose` (findings → groomable goals) |
+| `budget.max_minutes` / `max_tokens` | unset | wall-clock / host-reported token ceilings (iterations always enforce) |
+| `knowledge_graph.enabled` | off | research capture + the self-improving graph |
+| `LOOPSMITH_GATE_GLOBAL=1` (env) | unset | restores the pre-0.6 always-on prompt gate |
 
 ## How it works
 

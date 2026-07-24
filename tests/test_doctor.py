@@ -86,3 +86,18 @@ def test_detects_companions_never_failing_on_absence():
         assert "superpowers: present" in names            # detected installed
         assert "code-review: absent" in names             # detected missing
         assert all(c["ok"] for c in checks if "superpowers" in c["name"] or "code-review" in c["name"])
+
+
+def test_features_dashboard_reports_states(tmp_path):
+    import json, importlib.util, pathlib as _pl
+    spec = importlib.util.spec_from_file_location(
+        "doctor", _pl.Path(__file__).resolve().parent.parent / "skills" / "sdlc-doctor" / "scripts" / "doctor.py")
+    d = importlib.util.module_from_spec(spec); spec.loader.exec_module(d)
+    base = tmp_path / ".sdlc"; base.mkdir()
+    base.joinpath("config.json").write_text(json.dumps(
+        {"model_selection": "auto", "verify": {"enforce": True}}))
+    rows = {name: state for name, state, _ in d.features(str(base))}
+    assert "AUTO" in rows["model+effort auto-selection"]
+    assert rows["machine-checked done (verify.enforce)"].startswith("ON")
+    assert "off" in rows["hard plan-gate (deny source edits w/o fresh plan)"]
+    assert rows["backlog source"] == "local-goals"

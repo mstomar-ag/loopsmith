@@ -47,3 +47,11 @@ phases inside one subagent at the predicted tier (the design: "the rest of the s
 model"). `/sdlc-goal` (interactive) only **surfaces** the recommendation — per-gate approval doesn't
 compose with burying the goal in a subagent. Off-Claude, or with `model_selection: off`, `resolve`
 prints `off` and everything runs inline — a clean no-op.
+
+## Two granularities, two axes (0.6)
+
+- `predict.py resolve '<goal>' .sdlc` — the GOAL ceiling tier (bare tier or `off`; backward-compatible).
+- `predict.py resolve-step '<step>' .sdlc` — the per-STEP pair `model=<tier> effort=<low|medium|high>`,
+  so a mechanical step inside a hard goal (tests, watcher, lint) runs cheaper than the ceiling.
+- Both honor the same gate: `config.json` → `"model_selection": "auto"` (default `off` — nothing
+  changes until a repo opts in). Effort maps to the host's reasoning-effort control where available.
