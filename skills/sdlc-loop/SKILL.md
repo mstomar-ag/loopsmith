@@ -76,7 +76,9 @@ loop instead of stopping: take the oldest gap, research it, write the finding to
 spare iteration, only within budget, and park (never force)** anything that needs a human. This is how
 the graph fills what it didn't know — turn it off by leaving the KG disabled.
 
-At STOP, report: N done, M parked, K failed. If anything parked or failed, point the user to the items —
+At STOP, report: N done, M parked, K failed. (Unattended overnight? The user can wrap this loop
+in `scripts/supervise.sh` — it relaunches through usage-limit resets and crashes with zero
+polling; you never invoke it yourself mid-session.) If anything parked or failed, point the user to the items —
 `.sdlc/state/review-queue.md` in local mode, or the issues labelled `sdlc:parked` (the **Blocked**
 column on the board) in github mode.
 Parking is always correct over forcing an irreversible action to "finish" a goal.
