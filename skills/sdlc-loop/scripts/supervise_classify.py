@@ -16,8 +16,10 @@ The classifier never talks to any API and adds zero LLM calls — it reads text.
 """
 import random, re, sys, time
 
-_DONE = re.compile(r"backlog[- ]empty|backlog is empty|\d+ done, \d+ parked", re.I)
-_BUDGET = re.compile(r"\bBUDGET\b|stopped.{0,12}budget|budget (cap|stop|hit|reached)", re.I)
+# done must key on SUCCESS-specific markers only: the loop's stop REPORT ("N done, M
+# parked") prints on EVERY stop — budget stops included — so it must never mean done.
+_DONE = re.compile(r"backlog[- ]empty|backlog is empty|LOOP STOP: backlog|^DONE\s*$", re.I | re.M)
+_BUDGET = re.compile(r"^BUDGET\s*$|LOOP STOP: budget|stopped.{0,12}budget|budget (cap|stop|hit|reached)", re.I | re.M)
 _LIMIT = re.compile(r"(usage|rate).{0,3}limit|limit (reached|exhausted|hit)|out of (usage|quota)|"
                     r"hit your.{0,12}limit|quota exceeded", re.I)
 _RESET_AT = re.compile(r"reset[s]?\s*(?:at\s*)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)?", re.I)

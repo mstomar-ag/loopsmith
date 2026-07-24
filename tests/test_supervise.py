@@ -17,13 +17,25 @@ class _FixedRng:
 
 def test_done_when_loop_reports_its_own_stop():
     m = _mod()
-    for tail in ("stopped: backlog-empty", "3 done, 1 parked, 0 failed", "Backlog is empty."):
+    for tail in ("stopped: backlog-empty", "LOOP STOP: backlog-empty\n3 done, 1 parked",
+                 "Backlog is empty.", "DONE"):
         assert m.classify(tail, rng=_FixedRng())[0] == "done", tail
+
+
+def test_stop_report_alone_is_NOT_done_budget_wins():
+    # THE review-found bug: the "N done, M parked" report prints on EVERY stop —
+    # a budget stop carrying it must classify relaunch, never done.
+    m = _mod()
+    action, _, _ = m.classify("LOOP STOP: budget\n0 done, 2 parked, 0 failed", rng=_FixedRng())
+    assert action == "relaunch"
+    action, _, _ = m.classify("2 done, 1 parked, 0 failed", rng=_FixedRng())
+    assert action != "done"                     # report without a success marker = unknown
 
 
 def test_budget_stop_relaunches_after_short_pause():
     m = _mod()
-    action, secs, _ = m.classify("next -> BUDGET; stopping this run", rng=_FixedRng())
+    # the true contract: `loop.py next` prints BUDGET on its own line
+    action, secs, _ = m.classify("$ loop.py next .sdlc\nBUDGET\n0 done, 2 parked", rng=_FixedRng())
     assert action == "relaunch" and secs == 60
 
 
@@ -76,7 +88,7 @@ def _run_supervisor(tmp_path, fake_script, max_runs="10"):
 
 def test_wrapper_exits_zero_on_backlog_empty(tmp_path):
     proc, base = _run_supervisor(
-        tmp_path, 'echo "run complete"; echo "stopped: backlog-empty"\n')
+        tmp_path, 'echo "run complete"; echo "LOOP STOP: backlog-empty"\n')
     assert proc.returncode == 0
     assert "action=done" in (base / "state" / "supervisor.log").read_text()
 
@@ -85,7 +97,7 @@ def test_wrapper_relaunches_through_limit_then_finishes(tmp_path):
     # 1st session: limit (no parseable time -> backoff, scaled to 0s); 2nd: done.
     script = (
         'N="$(cat "$STATE_DIR/n" 2>/dev/null || echo 0)"; N=$((N+1)); echo "$N" > "$STATE_DIR/n"\n'
-        'if [ "$N" -lt 2 ]; then echo "usage limit reached, try again later"; else echo "2 done, 0 parked"; fi\n')
+        'if [ "$N" -lt 2 ]; then echo "usage limit reached, try again later"; else echo "LOOP STOP: backlog-empty"; fi\n')
     base_dir = tmp_path / ".sdlc"
     script = script.replace("$STATE_DIR", str(tmp_path))
     proc, base = _run_supervisor(tmp_path, script)

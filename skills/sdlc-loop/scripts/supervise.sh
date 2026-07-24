@@ -29,9 +29,13 @@ while :; do
   fi
   runs=$((runs + 1))
   echo "supervisor: run #$runs — $(date)" >> "$LOG"
+  # Per-run capture: classify THIS session's output only — a cumulative-log tail
+  # could bleed a previous run's stop text into the verdict.
+  RUNOUT="$STATE/supervisor.run.out"
   # shellcheck disable=SC2086 — CMD is deliberately word-split (a command line)
-  $CMD >> "$LOG" 2>&1
-  tail -n 50 "$LOG" > "$TAILF" 2>/dev/null || : > "$TAILF"
+  $CMD > "$RUNOUT" 2>&1
+  cat "$RUNOUT" >> "$LOG" 2>/dev/null || true
+  tail -n 50 "$RUNOUT" > "$TAILF" 2>/dev/null || : > "$TAILF"
   verdict="$(python3 "$HERE/supervise_classify.py" "$TAILF" "$attempt" 2>/dev/null \
              || echo 'action=backoff sleep=1800 reason=classifier unavailable')"
   action="${verdict#action=}"; action="${action%% *}"
