@@ -207,3 +207,37 @@ def test_spend_cli_verb_accumulates():
             assert proc.returncode == 0, proc.stderr
         lp = _loop()
         assert lp.state.load_cursor(base)["run_tokens"] == 200
+
+
+# --- failed != parked (0.6): a fix-needed lane distinct from decide-needed ---
+
+def test_failed_result_gets_failed_status_and_own_queue_tag():
+    with tempfile.TemporaryDirectory() as d:
+        base = _backlog(d, 2)
+        rg = lambda g: ("failed", "tests will not pass") if g.endswith("0001.md") else ("done", "")
+        res = _loop().run_loop(base, rg)
+        assert res["done"] == 1 and res["failed"] == 1 and res["parked"] == 0
+        goal_text = (pathlib.Path(base) / "goals" / "0001.md").read_text()
+        assert "status: failed" in goal_text
+        queue = (pathlib.Path(base) / "state" / "review-queue.md").read_text()
+        assert "needs: a fix" in queue and "tests will not pass" in queue
+
+
+def test_parked_and_failed_are_counted_separately():
+    with tempfile.TemporaryDirectory() as d:
+        base = _backlog(d, 3)
+        results = {"0001.md": ("parked", "deploy gate"), "0002.md": ("failed", "red suite")}
+        rg = lambda g: results.get(pathlib.Path(g).name, ("done", ""))
+        res = _loop().run_loop(base, rg)
+        assert res == {**res, "done": 1, "parked": 1, "failed": 1}
+
+
+def test_discovery_skips_failed_goals():
+    with tempfile.TemporaryDirectory() as d:
+        base = _backlog(d, 2)
+        (pathlib.Path(base) / "goals" / "0001.md").write_text(
+            "---\nid: 0001\nstatus: failed\n---\nx\n")
+        lp = _loop()
+        src = lp.sources.get_source(base, lp.state.load_config(base))
+        kind, goal = lp._next(base, src, lp.state.load_config(base))
+        assert kind == "goal" and goal.endswith("0002.md")

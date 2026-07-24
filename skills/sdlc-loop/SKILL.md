@@ -37,7 +37,8 @@ Then repeat until the helper says stop:
    - a hard checkpoint / a decision only the user can make,
    - an **irreversible or expensive action** (deploy, delete, overwrite, spend, migrate) — NEVER
      run one unattended,
-   - a failure you cannot resolve.
+   - a failure you cannot resolve — record THIS one as `failed` (see step 6): parked means
+     "needs a human decision", failed means "needs a fix"; the queue separates the two.
 
    As you complete each phase, **record it** so the issue timeline is the audit trail:
    `python3 "${CLAUDE_SKILL_DIR}/scripts/loop.py" note .sdlc "$goal" "<phase>: <key findings / decisions>"`.
@@ -51,7 +52,7 @@ Then repeat until the helper says stop:
    **write only the audit-trail notes**, and **park** any north-star / standing-rule proposal to the
    review queue for a human; never edit a standing doc unattended. Fail-open — it never breaks the run.
 6. Record the outcome:
-   `python3 "${CLAUDE_SKILL_DIR}/scripts/loop.py" record .sdlc "$goal" done` (or `parked "reason"`).
+   `python3 "${CLAUDE_SKILL_DIR}/scripts/loop.py" record .sdlc "$goal" done` (or `parked "reason"` / `failed "reason"`).
 7. Loop.
 
 **Self-improving (optional, gated):** when the backlog is empty (`next` → `DONE`) but the knowledge
@@ -62,7 +63,7 @@ loop instead of stopping: take the oldest gap, research it, write the finding to
 spare iteration, only within budget, and park (never force)** anything that needs a human. This is how
 the graph fills what it didn't know — turn it off by leaving the KG disabled.
 
-At STOP, report: N done, M parked. If anything parked, point the user to the parked items —
+At STOP, report: N done, M parked, K failed. If anything parked or failed, point the user to the items —
 `.sdlc/state/review-queue.md` in local mode, or the issues labelled `sdlc:parked` (the **Blocked**
 column on the board) in github mode.
 Parking is always correct over forcing an irreversible action to "finish" a goal.

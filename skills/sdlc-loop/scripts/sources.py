@@ -42,6 +42,9 @@ class LocalSource:
     def park(self, goal, reason):
         state.park(self.sdlc_dir, goal, reason)
 
+    def fail(self, goal, reason):
+        state.fail(self.sdlc_dir, goal, reason)
+
     def mark_qc(self, goal):
         pass            # QC is a board-only stage; the local source has no QC column
 
@@ -159,8 +162,15 @@ class GitHubSource:
         self._set_board_status(goal, self.col["done"])
 
     def park(self, goal, reason):
-        self._run(["issue", "comment", goal, *self._repo_args(),
-                   "--body", "Parked by LoopSmith — needs human review: " + reason])
+        self._offboard(goal, "Parked by LoopSmith — needs human review: " + reason)
+
+    def fail(self, goal, reason):
+        # Same board mechanics as park (the label is a visibility tag) — the issue
+        # timeline carries the distinction: this needs a FIX, not a decision.
+        self._offboard(goal, "Failed in the LoopSmith loop — needs a fix (not a decision): " + reason)
+
+    def _offboard(self, goal, comment):
+        self._run(["issue", "comment", goal, *self._repo_args(), "--body", comment])
         self._ensure_labels()
         try:
             self._run(["issue", "edit", goal, *self._repo_args(), "--add-label", self.parked_label])
