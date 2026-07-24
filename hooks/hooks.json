@@ -22,6 +22,18 @@
           }
         ]
       }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/plan_gate.sh\"",
+            "statusMessage": "Checking the hard plan-gate (opt-in)"
+          }
+        ]
+      }
     ]
   }
 }
