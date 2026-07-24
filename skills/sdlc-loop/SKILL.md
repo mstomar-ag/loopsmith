@@ -53,6 +53,12 @@ Then repeat until the helper says stop:
    review queue for a human; never edit a standing doc unattended. Fail-open — it never breaks the run.
 6. Record the outcome:
    `python3 "${CLAUDE_SKILL_DIR}/scripts/loop.py" record .sdlc "$goal" done` (or `parked "reason"` / `failed "reason"`).
+   With `config.verify.enforce` on, a `done` needs FRESH machine evidence first —
+   `python3 "${CLAUDE_SKILL_DIR}/scripts/loop.py" verify .sdlc "$goal"` runs the goal's proving
+   command (frontmatter `verify_command`, else `verify.command`) and records it; `record done` is
+   REFUSED without a passing, this-run verify. Declared a pipeline (`.sdlc/pipeline.json`)? Run the
+   bidirectional report card between goals — `python3 "${CLAUDE_SKILL_DIR}/scripts/pipeline.py" card
+   .sdlc` — and treat its findings as inputs, not gates.
 7. Loop.
 
 **Self-improving (optional, gated):** when the backlog is empty (`next` → `DONE`) but the knowledge
