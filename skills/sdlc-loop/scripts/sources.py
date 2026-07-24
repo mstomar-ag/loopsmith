@@ -85,6 +85,10 @@ class GitHubSource:
         self.goal_label = gh.get("goal_label", "sdlc:goal")
         self.in_progress_label = gh.get("in_progress_label", "sdlc:in-progress")
         self.parked_label = gh.get("parked_label", "sdlc:parked")
+        # Optional single-owner scope for discovery. When set (e.g. "@me"), the loop only PICKS issues
+        # assigned to that user, so several people can run the loop against one shared board without
+        # grabbing each other's work. Absent/empty => no filter => byte-compatible with prior behavior.
+        self.assignee = gh.get("assignee") or None
         self._raw_run = run or _run_gh
         self._labels_ready = False
         # Projects-v2 board (opt-in). An ABSENT `project` block => disabled, so existing github
@@ -140,8 +144,12 @@ class GitHubSource:
         self._labels_ready = True
 
     def next_pending(self):
-        out = self._run(["issue", "list", *self._repo_args(), "--label", self.goal_label,
-                         "--state", "open", "--json", "number,labels", "--limit", "200"])  # ponytail: 200-issue cap
+        args = ["issue", "list", *self._repo_args(), "--label", self.goal_label,
+                "--state", "open", "--json", "number,labels", "--limit", "200"]     # ponytail: 200-issue cap
+        if self.assignee:
+            args += ["--assignee", self.assignee]     # scope the queue to one owner so parallel loops
+                                                       # on a shared board don't pick the same issue
+        out = self._run(args)
         issues = json.loads(out or "[]")
         pending = [i for i in issues
                    if self.parked_label not in {l.get("name") for l in (i.get("labels") or [])}]

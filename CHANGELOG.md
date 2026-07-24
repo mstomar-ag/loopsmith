@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+### Backlog
+- **Per-owner discovery scope**: `discovery.github.assignee` (e.g. `"@me"`) makes the loop pick only
+  issues assigned to that user, so several people can run the loop against one shared board/Project
+  without grabbing each other's work. Absent/empty = no filter (every open goal issue is in scope) —
+  byte-compatible with prior behavior. Applies to discovery only; the board backlog sync still seeds
+  the whole team's issues.
+
 ## 0.6.0 — the trust-and-feedback release
 
 The theme: everything the loop CLAIMS is now checkable, everything it produces feeds
