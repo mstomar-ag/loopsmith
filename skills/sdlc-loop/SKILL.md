@@ -58,7 +58,9 @@ Then repeat until the helper says stop:
    command (frontmatter `verify_command`, else `verify.command`) and records it; `record done` is
    REFUSED without a passing, this-run verify. Declared a pipeline (`.sdlc/pipeline.json`)? Run the
    bidirectional report card between goals — `python3 "${CLAUDE_SKILL_DIR}/scripts/pipeline.py" card
-   .sdlc` — and treat its findings as inputs, not gates.
+   .sdlc` — and treat its findings as inputs, not gates. `pipeline.py propose .sdlc` turns the card's
+   FAILING signals into `proposed` goal files (with the failing check wired as `verify_command`);
+   the loop NEVER runs a `proposed` goal — a human promotes it to `pending` first.
 7. Loop.
 
 **Self-improving (optional, gated):** when the backlog is empty (`next` → `DONE`) but the knowledge

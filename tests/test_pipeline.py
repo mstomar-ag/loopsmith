@@ -248,3 +248,96 @@ def test_check_timeout_reads_fail():
         card = pl.build_card(base)
         sig = card["stages"][0]["signals"][0]
         assert sig["status"] == "FAIL" and "timed out" in sig["detail"]
+
+
+# --- the feedback circle (0.6): failing card signals become proposed goals ---
+
+def test_propose_writes_proposed_goals_with_wired_verify():
+    with tempfile.TemporaryDirectory() as d:
+        base = _project(d, [
+            {"name": "transform",
+             "checks": {"reverse": [{"name": "rows trace back", "run": "false"}]}},
+        ])
+        pl = _mod("pipeline")
+        created = pl.propose_goals(base, pl.build_card(base))
+        assert len(created) == 1
+        text = pathlib.Path(created[0]).read_text()
+        assert "status: proposed" in text and "source: detector" in text
+        assert "verify_command: false" in text          # the failing check IS the proof-of-fix
+        # dedup: proposing again creates nothing new
+        assert pl.propose_goals(base, pl.build_card(base)) == []
+
+
+def test_proposed_goals_are_never_auto_picked_until_promoted():
+    with tempfile.TemporaryDirectory() as d:
+        base = _project(d, [
+            {"name": "s", "checks": {"forward": [{"name": "gate", "run": "false"}]}},
+        ])
+        pl = _mod("pipeline")
+        created = pl.propose_goals(base, pl.build_card(base))
+        lp = _mod("loop")
+        src = lp.sources.get_source(base, lp.state.load_config(base))
+        kind, _ = lp._next(base, src, lp.state.load_config(base))
+        assert kind == "DONE"                            # proposed is invisible to the loop
+        # a human promotes it → the loop picks it up
+        goal = pathlib.Path(created[0])
+        goal.write_text(goal.read_text().replace("status: proposed", "status: pending"))
+        kind, picked = lp._next(base, src, lp.state.load_config(base))
+        assert kind == "goal" and picked == str(goal)
+
+
+def test_propose_cli_and_status_counts_proposed(capsys):
+    with tempfile.TemporaryDirectory() as d:
+        base = _project(d, [
+            {"name": "s", "checks": {"forward": [{"name": "gate", "run": "false"}]}},
+        ])
+        pl = _mod("pipeline")
+        assert pl.main(["pipeline.py", "propose", base]) == 0
+        assert "proposed 1 goal(s)" in capsys.readouterr().out
+        st_path = pathlib.Path(__file__).resolve().parent.parent / "skills" / "sdlc-status" / "scripts" / "status.py"
+        spec = importlib.util.spec_from_file_location("status", st_path)
+        st = importlib.util.module_from_spec(spec); spec.loader.exec_module(st)
+        assert st.summary(base)["proposed"] == 1
+
+
+def test_e2e_feedback_circle_break_detect_propose_fix_verify_clean(tmp_path):
+    """The whole loop on a neutral project, end to end and $0:
+    a stage breaks -> the card localizes it -> propose writes a groomable goal with the
+    failing check wired as its proof -> a human promotes -> the loop works the goal ->
+    verify.enforce demands the machine evidence -> the next card is clean and --compare
+    reports the improvement. No LLM, no network, no gate on the examined run anywhere."""
+    root = tmp_path
+    base = _project(str(root), [
+        {"name": "transform",
+         "checks": {"reverse": [{"name": "outputs trace to inputs",
+                                 "run": "test -f fixed.txt"}]}},
+    ])
+    (pathlib.Path(base) / "config.json").write_text(json.dumps(
+        {"budget": {"max_iterations": 10}, "verify": {"command": "", "enforce": True}}))
+    pl, lp = _mod("pipeline"), _mod("loop")
+
+    broken = pl.build_card(base)                      # 1. detect + localize
+    assert broken["verdict"]["failing_stages"] == ["transform"]
+    prior = json.loads(json.dumps(broken))
+
+    created = pl.propose_goals(base, broken)          # 2. findings become groomable work
+    assert len(created) == 1
+    goal = pathlib.Path(created[0])
+
+    lp.state.start_run(base)
+    src = lp.sources.get_source(base, lp.state.load_config(base))
+    assert lp._next(base, src, lp.state.load_config(base))[0] == "DONE"   # human gate holds
+
+    goal.write_text(goal.read_text().replace("status: proposed", "status: pending"))  # 3. groom
+
+    kind, picked = lp._next(base, src, lp.state.load_config(base))        # 4. the loop works it
+    assert kind == "goal" and picked == str(goal)
+    assert lp.main(["loop.py", "record", base, picked, "done"]) == 4      # no evidence -> refused
+    (root / "fixed.txt").write_text("the fix")                            # the actual fix lands
+    assert lp.main(["loop.py", "verify", base, picked]) == 0              # machine proof
+    assert lp.main(["loop.py", "record", base, picked, "done"]) == 0
+
+    healed = pl.build_card(base)                      # 5. the loop proves its own fix
+    assert healed["verdict"]["failing_stages"] == []
+    delta = pl.compare_cards(prior, healed)
+    assert delta["improved"] and delta["recurrence_count"] == 0

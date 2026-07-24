@@ -16,7 +16,7 @@ def _status_of(text):
 
 def summary(sdlc_dir):
     base = pathlib.Path(sdlc_dir)
-    counts = {"pending": 0, "in_progress": 0, "done": 0, "parked": 0, "failed": 0}
+    counts = {"pending": 0, "in_progress": 0, "done": 0, "parked": 0, "failed": 0, "proposed": 0}
     for p in sorted((base / "goals").glob("*.md")):
         s = _status_of(p.read_text())
         if s in counts:
@@ -33,7 +33,7 @@ def summary(sdlc_dir):
 
 def main(argv):
     s = summary(argv[1] if len(argv) > 1 else ".sdlc")
-    print(f"backlog: {s['pending']} pending, {s['in_progress']} in-progress, "
+    print(f"backlog: {s['proposed']} proposed, {s['pending']} pending, {s['in_progress']} in-progress, "
           f"{s['done']} done, {s['parked']} parked, {s['failed']} failed | "
           f"iteration {s['iteration']} | "
           f"review-queue: {'NEEDS ATTENTION' if s['queue_nonempty'] else 'empty'}")
