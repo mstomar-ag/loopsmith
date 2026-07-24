@@ -49,6 +49,12 @@ It halts on the **per-run budgets** (`config.json` → `budget`): `max_iteration
 when set — `max_minutes` (wall-clock from the run's start) and `max_tokens` (against spend the host
 reports via `loop.py spend`; no reports means no token enforcement). All reset each invocation and
 are resume-safe (a budget stop, re-run, picks up where it left off). Run
+**Overnight without babysitting:** `bash skills/sdlc-loop/scripts/supervise.sh .sdlc` wraps the
+loop in a zero-polling supervisor — blocked while a session runs, and on exit it classifies the
+tail: loop finished → stop; per-run budget → relaunch; **usage-limit exhaustion → sleeps until the
+stated reset time (+ jitter) and relaunches**; unknown crash → capped escalating backoff. Stop it
+any time with `touch .sdlc/state/supervisor.stop`. (Sleeping *machine* ≠ sleeping process — on a
+macOS laptop run it under `caffeinate -is`.) Run
 **`/sdlc-status`** any time for backlog counts (pending / in-progress / done / parked / failed) + whether the
 review queue needs attention.
 
