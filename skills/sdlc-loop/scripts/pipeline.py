@@ -163,7 +163,53 @@ def render(card, delta=None):
     return "\n".join(lines)
 
 
+def propose_goals(sdlc_dir, card):
+    """The feedback circle: turn the card's FAILING signals into `proposed` goal files a
+    human can groom. Proposing is safe (it only writes files nobody auto-runs — discovery
+    skips `proposed` until a human edits it to `pending`); each proposal auto-wires
+    `verify_command` to the failing check, so the fixed goal is machine-verifiable.
+    Dedup: one deterministic id per (stage, direction, signal); an existing file with
+    that id — whatever its status — is never overwritten. Returns the created paths."""
+    import hashlib
+    goals_dir = pathlib.Path(sdlc_dir) / "goals"
+    goals_dir.mkdir(parents=True, exist_ok=True)
+    check_cmds = {}
+    spec = load_pipeline(sdlc_dir) or {"stages": []}
+    for stage in spec["stages"]:
+        for direction in ("forward", "reverse"):
+            for check in (stage.get("checks") or {}).get(direction) or []:
+                check_cmds[(stage.get("name"), direction, check.get("name"))] = check.get("run", "")
+    created = []
+    for s in card.get("stages", []):
+        for x in s.get("signals", []):
+            if x["status"] != FAIL:
+                continue
+            key = f"{s['stage']}/{x['direction']}/{x['name']}"
+            gid = "auto-" + hashlib.sha256(key.encode()).hexdigest()[:10]
+            path = goals_dir / f"{gid}.md"
+            if path.exists():
+                continue        # recurrence rides --compare's still_failing, not duplicate files
+            cmd = check_cmds.get((s["stage"], x["direction"], x["name"]), "")
+            fm = [f"id: {gid}", f"title: fix {key}", "status: proposed", "source: detector",
+                  f"done_when: the '{x['name']}' check passes for stage '{s['stage']}'"]
+            if cmd:
+                fm.append(f"verify_command: {cmd}")
+            path.write_text("---\n" + "\n".join(fm) + "\n---\n"
+                            f"Detected by the pipeline report card: {key} is FAILING "
+                            f"({x['detail']}).\nPromote to `status: pending` to let the loop work it.\n")
+            created.append(str(path))
+    return created
+
+
 def main(argv):
+    if len(argv) >= 3 and argv[1] == "propose":
+        card = build_card(argv[2])
+        if card is None:
+            print("NO-PIPELINE (declare .sdlc/pipeline.json first)", file=sys.stderr)
+            return 3
+        created = propose_goals(argv[2], card)
+        print(f"proposed {len(created)} goal(s)" + ("".join("\n  " + c for c in created)))
+        return 0
     if len(argv) >= 3 and argv[1] == "card":
         card = build_card(argv[2])
         if card is None:
@@ -183,8 +229,8 @@ def main(argv):
             out.write_text(json.dumps(card, indent=2))
             print(f"wrote {out}")
         return 0 if not card["verdict"]["failing_stages"] else 1
-    print("usage: pipeline.py card <sdlc_dir> [--json out.json] [--compare prior.json]",
-          file=sys.stderr)
+    print("usage: pipeline.py card <sdlc_dir> [--json out.json] [--compare prior.json] | "
+          "propose <sdlc_dir>", file=sys.stderr)
     return 2
 
 
