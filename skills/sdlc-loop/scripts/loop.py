@@ -78,7 +78,10 @@ def verify_goal(sdlc_dir, goal):
         print("NO-COMMAND (set goal frontmatter `verify_command` or config `verify.command`)",
               file=sys.stderr)
         return 3
-    proc = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+    # Proving commands run at the PROJECT root (the parent of .sdlc) — same resolution
+    # rule as pipeline.py checks — not at whatever cwd the caller happens to be in.
+    root = str(pathlib.Path(sdlc_dir).resolve().parent)
+    proc = subprocess.run(cmd, shell=True, capture_output=True, text=True, cwd=root)
     ev = _evidence_path(sdlc_dir, goal)
     ev.parent.mkdir(parents=True, exist_ok=True)
     tail = (proc.stdout + proc.stderr).strip().splitlines()[-5:]
