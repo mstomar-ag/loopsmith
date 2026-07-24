@@ -151,3 +151,13 @@ def test_run_gh_raises_clear_error_on_failure():
         assert False, "expected RuntimeError"
     except RuntimeError as e:
         assert "gh" in str(e)
+
+
+def test_github_fail_comments_fix_not_decision_and_excludes_issue():
+    src = _mod("sources")
+    run = _recording_runner({})
+    gh = src.GitHubSource({"discovery": {"source": "github"}}, run=run)
+    gh.fail("7", "red suite")
+    joined = [" ".join(c) for c in run.calls]
+    assert any("needs a fix (not a decision): red suite" in c for c in joined)
+    assert any("--remove-label" in c and "sdlc:goal" in c for c in joined)

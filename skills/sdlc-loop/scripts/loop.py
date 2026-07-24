@@ -48,7 +48,9 @@ def _next(sdlc_dir, source, config):
 def _record(sdlc_dir, source, goal, result, detail=""):
     if result == "done":
         source.complete(goal)
-    else:                                        # parked or failed
+    elif result == "failed" and hasattr(source, "fail"):
+        source.fail(goal, detail or result)      # hasattr: a source without fail() parks instead
+    else:                                        # parked (or failed on a fail-less source)
         source.park(goal, detail or result)
     cur = state.load_cursor(sdlc_dir)
     state.save_cursor(sdlc_dir, cur["iteration"] + 1, cur["run_iteration"] + 1,
@@ -59,7 +61,7 @@ def run_loop(sdlc_dir, run_goal):
     state.start_run(sdlc_dir)                       # reset per-run budget (resume-safe)
     config = state.load_config(sdlc_dir)
     source = sources.get_source(sdlc_dir, config)   # one source per run (e.g. github labels ensured once)
-    done = parked = 0
+    done = parked = failed = 0
     while True:
         kind, goal = _next(sdlc_dir, source, config)
         if kind == "DONE":
@@ -69,8 +71,9 @@ def run_loop(sdlc_dir, run_goal):
         result, detail = run_goal(goal)
         _record(sdlc_dir, source, goal, result, detail)
         done += (result == "done")
-        parked += (result != "done")
-    return {"done": done, "parked": parked,
+        failed += (result == "failed")
+        parked += (result not in ("done", "failed"))
+    return {"done": done, "parked": parked, "failed": failed,
             "iterations": state.load_cursor(sdlc_dir)["iteration"], "stopped": stopped}
 
 
@@ -98,7 +101,7 @@ def main(argv):
     if len(argv) >= 4 and argv[1] == "spend":       # host-reported token spend → budget.max_tokens
         state.add_tokens(argv[2], argv[3]); return 0
     print("usage: loop.py start <dir> | next <dir> | qc <dir> <goal> | "
-          "note <dir> <goal> <text> | record <dir> <goal> done|parked [reason] | "
+          "note <dir> <goal> <text> | record <dir> <goal> done|parked|failed [reason] | "
           "spend <dir> <tokens>", file=sys.stderr)
     return 2
 

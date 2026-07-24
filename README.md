@@ -42,13 +42,14 @@ it does not force. It parks on:
 - a hard checkpoint / a decision only you can make,
 - an **irreversible or expensive action** (deploy, delete, overwrite, spend, migrate) — never run
   unattended,
-- a failure it cannot resolve.
+- a hard failure it cannot resolve — recorded as **`failed`** (needs a fix), distinct from
+  parked (needs a decision), so the review queue separates the two.
 
 It halts on the **per-run budgets** (`config.json` → `budget`): `max_iterations` always, plus —
 when set — `max_minutes` (wall-clock from the run's start) and `max_tokens` (against spend the host
 reports via `loop.py spend`; no reports means no token enforcement). All reset each invocation and
 are resume-safe (a budget stop, re-run, picks up where it left off). Run
-**`/sdlc-status`** any time for backlog counts (pending / in-progress / done / parked) + whether the
+**`/sdlc-status`** any time for backlog counts (pending / in-progress / done / parked / failed) + whether the
 review queue needs attention.
 
 | | `/sdlc-goal` (interactive) | `/sdlc-loop` (autonomous) |

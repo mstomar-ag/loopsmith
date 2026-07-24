@@ -75,7 +75,18 @@ def complete(sdlc_dir, goal_path):
 
 def park(sdlc_dir, goal_path, reason):
     _set_status(goal_path, "parked")
+    _queue(sdlc_dir, goal_path, reason, "human review")
+
+
+def fail(sdlc_dir, goal_path, reason):
+    """A goal the loop COULD NOT resolve — distinct from parked (which needs a human
+    DECISION). Its own queue tag lets the morning read separate decide-this from fix-this."""
+    _set_status(goal_path, "failed")
+    _queue(sdlc_dir, goal_path, reason, "a fix (the loop could not resolve this)")
+
+
+def _queue(sdlc_dir, goal_path, reason, needs):
     q = pathlib.Path(sdlc_dir) / "state" / "review-queue.md"
     name = pathlib.Path(goal_path).name
     with q.open("a") as f:        # append-mode: race-safe (single-worker), header written once by scaffolder
-        f.write(f"\n## {name}\n- reason: {reason}\n- needs: human review\n")
+        f.write(f"\n## {name}\n- reason: {reason}\n- needs: {needs}\n")
