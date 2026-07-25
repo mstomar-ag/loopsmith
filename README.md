@@ -144,6 +144,7 @@ Every option LoopSmith provides, at a glance:
 | **Findings become work** | The card's failing signals become `proposed` goals (proof-of-fix pre-wired); the loop never runs one until you promote it | `pipeline.py propose` |
 | **Team ledger (opt-in)** | A committed, append-only record of what the loop did — **one file per person**, so concurrent appends can't conflict; the team view is their union | `ledger.py`, `ledger.enabled` |
 | **Cross-area hand-off** | Blocked on someone else's code? It resolves the owner from CODEOWNERS, opens an issue **assigned to them** (so their loop picks it up), and records it — instead of parking into silence | `handoff.py open` / `ack` |
+| **Ledger watcher** | Pulls the ledger's own ops branch on an interval — never your working tree — and surfaces what needs you between goals, deduped | `watch.sh`, `sync.py` |
 | **Pluggable backlog** | Local goal files, GitHub issues, or a GitHub **Projects v2 board** | `discovery.source` |
 | **Board + audit trail** | Cards flow Backlog → In Progress → QC → Done → Blocked; every phase recorded on the issue | `/sdlc-init --github` |
 | **Self-improving knowledge graph** | Captures research + lessons, **tracks what it doesn't know**, prunes itself, and fills gaps | `/sdlc-kg` |
@@ -190,7 +191,8 @@ Everything optional ships OFF — `/sdlc-doctor` prints this dashboard live (`do
 | `verify: {"enforce": true}` | off | `record done` refused without fresh machine evidence (`loop.py verify`) |
 | `gates.hard_plan_gate.enabled` | off | source edits mechanically denied without a fresh `.sdlc/plans/*.md` |
 | `.sdlc/pipeline.json` | absent | the bidirectional report card + `propose` (findings → groomable goals) |
-| `ledger: {"enabled": true}` | off | the committed team ledger — claims and outcomes recorded per author |
+| `ledger: {"enabled": true}` | off | the committed team ledger — claims and outcomes recorded per author, plus cross-area hand-off |
+| `ledger.watch.interval_seconds` | 900 | how often `watch.sh` pulls the ledger ops branch and refreshes the inbox |
 | `budget.max_minutes` / `max_tokens` | unset | wall-clock / host-reported token ceilings (iterations always enforce) |
 | `knowledge_graph.enabled` | off | research capture + the self-improving graph |
 | `LOOPSMITH_GATE_GLOBAL=1` (env) | unset | restores the pre-0.6 always-on prompt gate |
@@ -477,6 +479,45 @@ handoff.py ack .sdlc --issue 61 --state accepted --why "after the current slice"
 so `ledger.py summary` keeps showing it. Override the roster per area with `ledger.owners` when your
 directory layout doesn't match your area vocabulary. Every step degrades honestly: no owner, no `gh`,
 or a local backlog still writes the ledger entry.
+
+### Sharing it — an ops branch that never touches your working tree
+
+A shared ledger has to be pulled often, and pulling your integration branch mid-task is how people
+lose work to a surprise rebase. So the ledger lives on its own branch, and **`.sdlc/ledger/` is a git
+worktree checked out to it**:
+
+```bash
+sync.py init .sdlc      # create the branch (from the EMPTY tree) + the worktree, once per clone
+```
+
+Add `.sdlc/ledger/` to `.gitignore` on your code branch. From then on:
+
+* fetching and rebasing the ledger touches **only** that worktree — your code checkout never moves;
+* the ops branch is never merged into the integration branch, so it needs no review and can stay
+  unprotected while your code branch stays locked down;
+* the branch starts from the empty tree, so it carries the ledger and nothing else.
+
+`sync.py publish` fast-forwards your own entries file onto it; a rejected push fetches, rebases and
+retries rather than forcing — and because nobody shares a file, that replay can't conflict.
+
+### The watcher — so a mention actually reaches you
+
+```bash
+bash watch.sh .sdlc &        # stop it with: touch .sdlc/state/watch.stop
+```
+
+Each tick pulls the ops branch, works out what is addressed to you and hasn't been surfaced yet,
+writes `.sdlc/state/inbox.md`, and publishes anything of your own still sitting local. Interval is
+`ledger.watch.interval_seconds` (default 900).
+
+**`loop.py next` prints that inbox on stderr before it hands over the next goal.** That boundary is
+deliberate and it is the honest one: nothing can inject a message into a running session, and
+interrupting a goal mid-flight is how half-finished work gets lost. Worst-case latency is one goal.
+A `P0` should be taken *next*, not *now*.
+
+Two independent suppressions keep it quiet: a per-author cursor so history isn't re-read every tick,
+and a `kind:issue:state` signature so a colleague's rebase can't replay old mentions at you. A
+*state change* on the same issue is news and does fire.
 
 ---
 

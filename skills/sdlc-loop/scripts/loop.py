@@ -49,6 +49,24 @@ def _next(sdlc_dir, source, config):
     return ("goal", goal)
 
 
+def _surface_inbox(sdlc_dir):
+    """Print anything a teammate needs from you BEFORE handing over the next goal.
+
+    Between goals is the only boundary that works: nothing can inject a message into a running
+    session, and interrupting a goal mid-flight is how half-finished work gets lost. Worst-case
+    latency is therefore one goal, which is the right trade. stderr ONLY — stdout is the goal the
+    caller parses. Fail-open: no watcher, no inbox, no problem."""
+    try:
+        watch = _load("watch")
+        text = watch.read_inbox(sdlc_dir)
+        if text:
+            print("\n=== LEDGER INBOX — a teammate needs you ===\n" + text
+                  + "\n=== end inbox ===\n", file=sys.stderr)
+            watch.clear_inbox(sdlc_dir)
+    except Exception:
+        pass
+
+
 def _record(sdlc_dir, source, goal, result, detail=""):
     if result == "done":
         source.complete(goal)
@@ -141,6 +159,7 @@ def main(argv):
         state.start_run(argv[2]); return 0
     if len(argv) >= 3 and argv[1] == "next":
         config = state.load_config(argv[2])
+        _surface_inbox(argv[2])                     # stderr; stdout stays exactly the goal/DONE/BUDGET
         kind, goal = _next(argv[2], sources.get_source(argv[2], config), config)
         print(goal if kind == "goal" else kind); return 0
     if len(argv) >= 4 and argv[1] == "qc":          # board-only: move a goal to QC at the Review phase

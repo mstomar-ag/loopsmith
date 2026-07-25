@@ -24,6 +24,21 @@
   `deferred` deliberately does not settle it. Degrades honestly with no owner, no `gh`, or a local
   backlog: the ledger entry is still written.
 
+- **Ledger transport + watcher** — a mention nobody reads is worth nothing, so the ledger now shares
+  itself and tells you when it needs you. `sync.py init` makes `.sdlc/ledger/` a **git worktree** on a
+  dedicated ops branch (default `sdlc-ledger`, created from the EMPTY tree so it carries no code):
+  fetching and rebasing the ledger touches only that worktree, so a pull can never disturb your code
+  checkout or drag you into a mid-task rebase, and the branch is never merged into the integration
+  branch so it needs no review. `publish` fast-forwards your own entries file with a bounded
+  fetch-rebase-retry — a race replays, never forces, and can't conflict because nobody shares a file.
+  `watch.sh` ticks on `ledger.watch.interval_seconds` (default 900): pull → classify → write
+  `.sdlc/state/inbox.md` → publish. **`loop.py next` surfaces that inbox on stderr before handing over
+  the next goal** — the only honest delivery point, since nothing can inject a message into a running
+  session and interrupting a goal mid-flight loses work; worst case is one goal of latency, and stdout
+  stays exactly the goal the caller parses. Deduped twice: a per-author cursor, plus a
+  `kind:issue:state` signature so a colleague's rebase can't replay old mentions (a state *change*
+  still fires).
+
 ### Backlog
 - **Per-owner discovery scope**: `discovery.github.assignee` (e.g. `"@me"`) makes the loop pick only
   issues assigned to that user, so several people can run the loop against one shared board/Project
