@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## 0.7.0 — the coordination release
+
+The theme: LoopSmith stops being a single-player autopilot. A team running it against one
+repo now leaves a shared, attributed record of what each loop did; a blocker in someone
+else's code is handed to that person instead of parked into silence; and the hand-off
+actually reaches them. Everything ships opt-in and default-OFF — with no `ledger` block in
+config.json the loop behaves exactly as 0.6.0 did.
 
 ### Coordination
 - **Team ledger** (`ledger: {"enabled": true}`, default OFF): a committed, append-only record of what
@@ -39,7 +45,7 @@
   `kind:issue:state` signature so a colleague's rebase can't replay old mentions (a state *change*
   still fires).
 
-### Backlog
+### Backlog routing
 - **Per-owner discovery scope**: `discovery.github.assignee` (e.g. `"@me"`) makes the loop pick only
   issues assigned to that user, so several people can run the loop against one shared board/Project
   without grabbing each other's work. Absent/empty = no filter (every open goal issue is in scope) —

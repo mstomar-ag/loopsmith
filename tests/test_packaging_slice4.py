@@ -87,4 +87,4 @@ def test_portable_executors_defer_to_superpowers_and_have_parity():
 def test_versions_aligned():
     p = json.loads((ROOT / ".claude-plugin" / "plugin.json").read_text())
     mk = json.loads((ROOT / ".claude-plugin" / "marketplace.json").read_text())
-    assert p["version"] == "0.6.0" and mk["plugins"][0]["version"] == "0.6.0"
+    assert p["version"] == "0.7.0" and mk["plugins"][0]["version"] == "0.7.0"
