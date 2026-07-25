@@ -63,6 +63,21 @@ def check(sdlc_dir=".sdlc", run=None):
     return out
 
 
+def _ledger_entries(base):
+    """Count committed ledger lines. Read-only and fail-open — the dashboard never breaks on a
+    half-written file."""
+    total = 0
+    entries = pathlib.Path(base) / "ledger" / "entries"
+    if not entries.exists():
+        return 0
+    for path in sorted(entries.glob("*.jsonl")):
+        try:
+            total += sum(1 for line in path.read_text(encoding="utf-8").splitlines() if line.strip())
+        except OSError:
+            continue
+    return total
+
+
 def features(sdlc_dir=".sdlc"):
     """The capability dashboard: every optional feature, its CURRENT state, and the one-line
     enable. Informational (never a failure) — the answer to "what is on right now?"."""
@@ -72,6 +87,7 @@ def features(sdlc_dir=".sdlc"):
     budget = cfg.get("budget") or {}
     verify = cfg.get("verify") or {}
     gate = (cfg.get("gates") or {}).get("hard_plan_gate") or {}
+    par = cfg.get("parallel") or {}
     rows = [
         ("model+effort auto-selection",
          "AUTO (per-goal `resolve` + per-step `resolve-step`)"
@@ -103,6 +119,14 @@ def features(sdlc_dir=".sdlc"):
         ("backlog source",
          (cfg.get("discovery") or {}).get("source") or "local-goals",
          'config: "discovery": {"source": "github"}'),
+        ("team ledger",
+         ("ON — %d entr%s in .sdlc/ledger/entries/" % (_ledger_entries(base), "y" if _ledger_entries(base) == 1 else "ies"))
+         if (cfg.get("ledger") or {}).get("enabled") is True else "off (nothing is recorded)",
+         'config: "ledger": {"enabled": true}'),
+        ("slice parallelism",
+         ("ON — up to %s concurrent slices per wave" % par.get("max_concurrent", 3))
+         if par.get("enabled") is True else "off (a goal's slices run one after another)",
+         'config: "parallel": {"enabled": true, "max_concurrent": 3}'),
     ]
     return rows
 

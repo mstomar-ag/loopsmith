@@ -142,6 +142,10 @@ Every option LoopSmith provides, at a glance:
 | **Bidirectional report card** | Declare your pipeline's stages once; every stage gets a forward (nothing dropped) + reverse (nothing invented) lane — uninstrumented lanes read ABSENT, never green — with a recurrence delta across runs | `.sdlc/pipeline.json` + `pipeline.py card` |
 | **Model + effort auto-selection (opt-in)** | Per-goal ceiling AND per-step downgrade: mechanical steps run on a cheaper tier/effort (`model_selection: "auto"`, default off) | `predict.py resolve / resolve-step` |
 | **Findings become work** | The card's failing signals become `proposed` goals (proof-of-fix pre-wired); the loop never runs one until you promote it | `pipeline.py propose` |
+| **Team ledger (opt-in)** | A committed, append-only record of what the loop did — **one file per person**, so concurrent appends can't conflict; the team view is their union | `ledger.py`, `ledger.enabled` |
+| **Cross-area hand-off** | Blocked on someone else's code? It resolves the owner from CODEOWNERS, opens an issue **assigned to them** (so their loop picks it up), and records it — instead of parking into silence | `handoff.py open` / `ack` |
+| **Ledger watcher** | Pulls the ledger's own ops branch on an interval — never your working tree — and surfaces what needs you between goals, deduped | `watch.sh`, `sync.py` |
+| **Slice parallelism (opt-in)** | Declare a goal's slices and the files each touches; independent ones run as concurrent subagents in **waves** (own worktree each), instead of burning one session's context in sequence | `slices.py plan`, `parallel.enabled` |
 | **Pluggable backlog** | Local goal files, GitHub issues, or a GitHub **Projects v2 board** | `discovery.source` |
 | **Board + audit trail** | Cards flow Backlog → In Progress → QC → Done → Blocked; every phase recorded on the issue | `/sdlc-init --github` |
 | **Self-improving knowledge graph** | Captures research + lessons, **tracks what it doesn't know**, prunes itself, and fills gaps | `/sdlc-kg` |
@@ -188,6 +192,9 @@ Everything optional ships OFF — `/sdlc-doctor` prints this dashboard live (`do
 | `verify: {"enforce": true}` | off | `record done` refused without fresh machine evidence (`loop.py verify`) |
 | `gates.hard_plan_gate.enabled` | off | source edits mechanically denied without a fresh `.sdlc/plans/*.md` |
 | `.sdlc/pipeline.json` | absent | the bidirectional report card + `propose` (findings → groomable goals) |
+| `ledger: {"enabled": true}` | off | the committed team ledger — claims and outcomes recorded per author, plus cross-area hand-off |
+| `ledger.watch.interval_seconds` | 900 | how often `watch.sh` pulls the ledger ops branch and refreshes the inbox |
+| `parallel: {"enabled": true}` | off | a goal's independent slices run concurrently in waves (`max_concurrent`, default 3) from `.sdlc/plans/<goal>.slices.json` |
 | `budget.max_minutes` / `max_tokens` | unset | wall-clock / host-reported token ceilings (iterations always enforce) |
 | `knowledge_graph.enabled` | off | research capture + the self-improving graph |
 | `LOOPSMITH_GATE_GLOBAL=1` (env) | unset | restores the pre-0.6 always-on prompt gate |
@@ -397,6 +404,185 @@ mode. Recording is **fail-open** (never breaks a run).
 **Which to pick?** **Local** for a self-contained, zero-dependency repo where the backlog ships with
 the code. **GitHub** to keep goals visible to your team, triaged in Issues/Projects, and tied to the
 PRs the work produces.
+
+---
+
+## The team ledger (optional, off by default)
+
+The review queue answers *"what stopped?"* for one person on one machine — and it's gitignored, so
+nobody else ever sees it. Once more than one person runs the loop against a repo, that isn't enough:
+you need a **committed** record of what everyone's loop actually did, with a timestamp and a name on
+every line.
+
+Turn it on:
+
+```json
+"ledger": { "enabled": true }
+```
+
+From then on the loop records a `claimed` line when it takes a goal and an outcome line
+(`done` · `parked` · `failed`) when it finishes one. Every call is **fail-open** — a ledger problem
+can never stop a run.
+
+```
+.sdlc/ledger/
+├── entries/<actor>.jsonl   one file per person — you only ever write your own
+└── TEAM.md                 generated view; regenerate, never hand-edit
+```
+
+**Why one file per person.** Two people appending to a shared file race in the filesystem and then
+conflict again in git. Owning exactly one file each removes both by construction, and the team view
+is simply their union, computed on read. Your handle comes from `ledger.actor`, else the
+authenticated account (`gh api user`), else the shell user.
+
+Read it:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/skills/sdlc-loop/scripts/ledger.py" summary .sdlc  # counts + open hand-offs
+python3 "${CLAUDE_PLUGIN_ROOT}/skills/sdlc-loop/scripts/ledger.py" mine    .sdlc  # addressed to me
+python3 "${CLAUDE_PLUGIN_ROOT}/skills/sdlc-loop/scripts/ledger.py" render  .sdlc --write
+```
+
+Write anything else explicitly — kinds are
+`claimed · done · parked · failed · handoff · ack · release · note`:
+
+```bash
+ledger.py append .sdlc note 0007-cache.md --why "spike looks viable"
+```
+
+An entry with a `to` is **addressed** to that person: it lands in the team view and in their
+`ledger.py mine`. `/sdlc-status` reports the entry count; `/sdlc-doctor` reports whether the ledger
+is on.
+
+### Blocked on someone else's area? Hand it off, don't park into silence
+
+Parking is right for a decision only a human can make. It is the wrong answer for a **dependency in
+code another person owns** — the queue entry is local and gitignored, the issue comment is
+unaddressed, and the work stalls until someone happens to notice.
+
+```bash
+handoff.py open .sdlc "$goal" --area engine --why "auto-restart needs an engine feature flag" --priority P0
+```
+
+That resolves the owner from the repo's own `.github/CODEOWNERS` (the roster your host already
+enforces on every PR — no second list to keep true), opens an issue in their area **assigned to them
+and carrying the goal label**, records a `handoff` entry addressed to them, and links it from the
+blocked issue. Then the goal parks as usual and the loop moves on.
+
+The delivery needs no new machinery: because the new issue is a goal issue with an assignee, **the
+owner's own loop picks it up** through the `discovery.github.assignee` filter. The other half is an
+answer — taking it, needing time, declining, or closing it out:
+
+```bash
+handoff.py ack .sdlc --issue 61 --state accepted --why "after the current slice"
+```
+
+`deferred` deliberately does *not* settle a hand-off — a promise to look later is not a resolution,
+so `ledger.py summary` keeps showing it. Override the roster per area with `ledger.owners` when your
+directory layout doesn't match your area vocabulary. Every step degrades honestly: no owner, no `gh`,
+or a local backlog still writes the ledger entry.
+
+### Sharing it — an ops branch that never touches your working tree
+
+A shared ledger has to be pulled often, and pulling your integration branch mid-task is how people
+lose work to a surprise rebase. So the ledger lives on its own branch, and **`.sdlc/ledger/` is a git
+worktree checked out to it**:
+
+```bash
+sync.py init .sdlc      # create the branch (from the EMPTY tree) + the worktree, once per clone
+```
+
+Add `.sdlc/ledger/` to `.gitignore` on your code branch. From then on:
+
+* fetching and rebasing the ledger touches **only** that worktree — your code checkout never moves;
+* the ops branch is never merged into the integration branch, so it needs no review and can stay
+  unprotected while your code branch stays locked down;
+* the branch starts from the empty tree, so it carries the ledger and nothing else.
+
+`sync.py publish` fast-forwards your own entries file onto it; a rejected push fetches, rebases and
+retries rather than forcing — and because nobody shares a file, that replay can't conflict.
+
+### The watcher — so a mention actually reaches you
+
+```bash
+bash watch.sh .sdlc &        # stop it with: touch .sdlc/state/watch.stop
+```
+
+Each tick pulls the ops branch, works out what is addressed to you and hasn't been surfaced yet,
+writes `.sdlc/state/inbox.md`, and publishes anything of your own still sitting local. Interval is
+`ledger.watch.interval_seconds` (default 900).
+
+**`loop.py next` prints that inbox on stderr before it hands over the next goal.** That boundary is
+deliberate and it is the honest one: nothing can inject a message into a running session, and
+interrupting a goal mid-flight is how half-finished work gets lost. Worst-case latency is one goal.
+A `P0` should be taken *next*, not *now*.
+
+Two independent suppressions keep it quiet: a per-author cursor so history isn't re-read every tick,
+and a `kind:issue:state` signature so a colleague's rebase can't replay old mentions at you. A
+*state change* on the same issue is news and does fire.
+
+---
+
+## Slice parallelism (optional, off by default)
+
+A goal is planned as slices, and the loop runs them one after another — even when three of them touch
+nothing in common. That isn't only slow: a long goal spends **one session's context** on work that had
+no reason to share a window, so the last slice starts on a flushed one.
+
+Turn it on:
+
+```json
+"parallel": { "enabled": false, "max_concurrent": 3 }
+```
+
+Then declare the slices beside the goal's plan, in `.sdlc/plans/<goal-stem>.slices.json`:
+
+```json
+[
+  {"id": "s0", "title": "extract the config reader", "files": ["config/**"]},
+  {"id": "s1", "title": "rewrite the loader", "needs": ["s0"], "files": ["engine/loader.py"]},
+  {"id": "s2", "title": "new CLI flag",       "needs": ["s0"], "files": ["cli/**"]},
+  {"id": "s3", "title": "migrate the schema", "needs": ["s1"], "files": ["db/**"], "size": "large"}
+]
+```
+
+`needs`, `files`, `size` (`small` · `large`) and `status` (`pending` · `done`) are all optional.
+
+```bash
+slices.py plan     .sdlc "$goal" [--max N]   # the dispatch plan, wave by wave
+slices.py frontier .sdlc "$goal"             # what is runnable right now, one id per line
+slices.py check    .sdlc "$goal"             # validate only — exit 1 with the problems listed
+```
+
+**Waves, not a thread pool.** `plan` takes the runnable frontier (not done, every `needs` already
+done), packs a **wave** of mutually non-conflicting slices capped at `max_concurrent`, and repeats.
+Widest fan-out goes first, so a wave is never spent on leaves while the critical path waits, and the
+ordering is fully deterministic — you can read the plan before anything is dispatched. `check` reports
+unknown dependencies, duplicate ids, and **dependency cycles by their members** (you have to know
+which edge to break).
+
+**The conflict rule is deliberately paranoid.** Two slices conflict when their `files` globs *can*
+overlap — `fnmatch` in both directions plus a literal-prefix check, so `engine/**` and
+`engine/graph.py` are correctly seen as the same blast radius. **A slice that declares no files
+conflicts with everything** and runs alone: an unknown blast radius is not something you may
+parallelise, and one lost edit costs far more than one extra wave. Every slice that *does* declare
+files is dispatched with **`isolation: worktree`**, so concurrent siblings can't see or stomp each
+other's half-finished work.
+
+**Where this stops, honestly.** `/sdlc-loop` runs a wave's slices as **subagents** — fresh isolated
+context each, which is a documented, dependable primitive. It does **not** drive the Claude desktop
+app's "chips": that mechanism is app-internal and **not a public API for plugins**, so building on it
+would be building on something that can move without notice. So a slice marked `"size": "large"` — too
+big for one subagent's context — is dispatched as `session`, and the plan **prints the exact command
+for you to start**:
+
+```
+claude --worktree 0007-cache-s3
+```
+
+The loop never runs it for you. It also never shells out to an unattended `claude -p`: that's uncapped
+spend, and it would put a second worker on one `.sdlc`, which every state file in the kit assumes never
+happens. Leave `parallel` off, or ship no manifest, and every goal runs as one unit exactly as before.
 
 ---
 

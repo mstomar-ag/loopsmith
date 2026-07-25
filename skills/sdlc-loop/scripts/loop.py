@@ -3,7 +3,9 @@ the agent's CLI hooks into the same primitives. Budgets (all per-run, reset each
 max_iterations always enforces; max_minutes enforces by wall-clock from the run's start; max_tokens
 enforces against the host-REPORTED spend counter (`loop.py spend <dir> <n>` — the loop never measures
 spend itself; no reports == no enforcement). An absent/zero key enforces nothing, so a config without
-it behaves exactly as before. The irreversible-action gate is enforced by /sdlc-loop SKILL.md prose."""
+it behaves exactly as before. The irreversible-action gate is enforced by /sdlc-loop SKILL.md prose.
+Claim and outcome are mirrored to the team ledger (ledger.py) when `ledger.enabled` is on — every
+such call is fail-open, so a ledger problem can never stop a run."""
 import sys, pathlib, importlib.util, time
 
 _HERE = pathlib.Path(__file__).resolve().parent
@@ -16,6 +18,7 @@ def _load(name):
 
 state = _load("state")
 sources = _load("sources")          # backlog source: local files or GitHub issues (config-selected)
+ledger = _load("ledger")            # team record (config-gated, default OFF; every call is fail-open)
 
 
 def _budget_spent(cursor, budget):
@@ -42,7 +45,26 @@ def _next(sdlc_dir, source, config):
     if _budget_spent(state.load_cursor(sdlc_dir), config.get("budget", {})):
         return ("BUDGET", None)
     source.mark_in_progress(goal)
+    ledger.safe_append(sdlc_dir, "claimed", goal, config=config)
     return ("goal", goal)
+
+
+def _surface_inbox(sdlc_dir):
+    """Print anything a teammate needs from you BEFORE handing over the next goal.
+
+    Between goals is the only boundary that works: nothing can inject a message into a running
+    session, and interrupting a goal mid-flight is how half-finished work gets lost. Worst-case
+    latency is therefore one goal, which is the right trade. stderr ONLY — stdout is the goal the
+    caller parses. Fail-open: no watcher, no inbox, no problem."""
+    try:
+        watch = _load("watch")
+        text = watch.read_inbox(sdlc_dir)
+        if text:
+            print("\n=== LEDGER INBOX — a teammate needs you ===\n" + text
+                  + "\n=== end inbox ===\n", file=sys.stderr)
+            watch.clear_inbox(sdlc_dir)
+    except Exception:
+        pass
 
 
 def _record(sdlc_dir, source, goal, result, detail=""):
@@ -55,6 +77,9 @@ def _record(sdlc_dir, source, goal, result, detail=""):
     cur = state.load_cursor(sdlc_dir)
     state.save_cursor(sdlc_dir, cur["iteration"] + 1, cur["run_iteration"] + 1,
                       f"last: {pathlib.Path(goal).name} -> {result}")
+    # The outcome, once, on the single chokepoint both the CLI and run_loop paths pass through.
+    ledger.safe_append(sdlc_dir, result if result in ("done", "failed") else "parked", goal,
+                       why=detail or None)
 
 
 def _evidence_path(sdlc_dir, goal):
@@ -134,6 +159,7 @@ def main(argv):
         state.start_run(argv[2]); return 0
     if len(argv) >= 3 and argv[1] == "next":
         config = state.load_config(argv[2])
+        _surface_inbox(argv[2])                     # stderr; stdout stays exactly the goal/DONE/BUDGET
         kind, goal = _next(argv[2], sources.get_source(argv[2], config), config)
         print(goal if kind == "goal" else kind); return 0
     if len(argv) >= 4 and argv[1] == "qc":          # board-only: move a goal to QC at the Review phase

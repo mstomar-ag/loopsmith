@@ -1,0 +1,40 @@
+# Ledger — {{PROJECT_NAME}}
+
+The team's shared record of what the loop did.
+
+```
+ledger/                     a git WORKTREE on the ops branch (run: sync.py init .sdlc)
+├── entries/<actor>.jsonl   one file per person — you only ever write your own
+└── TEAM.md                 generated view; regenerate, never hand-edit
+```
+
+**Share it once per clone:** `python3 <loop-scripts>/sync.py init .sdlc`, then add `.sdlc/ledger/`
+to `.gitignore` on your code branch. The ledger then lives on its own branch (default
+`sdlc-ledger`), so pulling it never touches your code checkout — and that branch is never merged
+into your integration branch, so it needs no review. `sync.py pull` / `publish` move it;
+`bash <loop-scripts>/watch.sh .sdlc` does both on an interval and writes
+`.sdlc/state/inbox.md`, which `loop.py next` surfaces between goals.
+
+**Why one file per person.** Concurrent appends to a shared file conflict, in the filesystem
+and again in git. Owning exactly one file each removes the conflict by construction; the team
+view is the union of the files, computed on read.
+
+**Read it:**
+
+```bash
+python3 <loop-scripts>/ledger.py summary .sdlc          # counts + outstanding hand-offs
+python3 <loop-scripts>/ledger.py mine    .sdlc          # what is addressed to me
+python3 <loop-scripts>/ledger.py render  .sdlc --write  # regenerate TEAM.md
+```
+
+**Write it** — the loop records `claimed` and the outcome by itself once
+`"ledger": {"enabled": true}` is set. Anything else is an explicit append:
+
+```bash
+python3 <loop-scripts>/ledger.py append .sdlc note 0007-cache.md --why "spike looks viable"
+```
+
+One line per entry: `id · ts · actor · kind · goal`, plus any of
+`area · to · issue · priority · why · state · ref`. Kinds are
+`claimed · done · parked · failed · handoff · ack · release · note`.
+An entry with a `to` is addressed to that person and shows up in the team view.

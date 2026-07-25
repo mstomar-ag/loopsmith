@@ -23,3 +23,27 @@ def test_summary_counts_quoted_status():   # parity with frontmatter.parse (stri
         base = pathlib.Path(d) / ".sdlc"; (base / "goals").mkdir(parents=True); (base / "state").mkdir()
         (base / "goals" / "0001.md").write_text('---\nid: 0001\nstatus: "done"\n---\nx\n')
         assert _status().summary(str(base))["done"] == 1
+
+
+def _bare(d):
+    base = pathlib.Path(d) / ".sdlc"; (base / "goals").mkdir(parents=True); (base / "state").mkdir()
+    return base
+
+
+def test_ledger_count_is_zero_and_silent_when_absent(capsys):
+    with tempfile.TemporaryDirectory() as d:
+        base = _bare(d)
+        assert _status().summary(str(base))["ledger_entries"] == 0
+        _status().main(["status.py", str(base)])
+        assert "ledger:" not in capsys.readouterr().out      # same line as before, for a repo without one
+
+
+def test_ledger_count_unions_every_author_and_shows_in_the_line(capsys):
+    with tempfile.TemporaryDirectory() as d:
+        base = _bare(d)
+        entries = base / "ledger" / "entries"; entries.mkdir(parents=True)
+        (entries / "amy.jsonl").write_text('{"kind":"done"}\n\n{"kind":"parked"}\n')
+        (entries / "bo.jsonl").write_text('{"kind":"note"}\n')
+        assert _status().summary(str(base))["ledger_entries"] == 3     # blank line not counted
+        _status().main(["status.py", str(base)])
+        assert "ledger: 3 entries" in capsys.readouterr().out
