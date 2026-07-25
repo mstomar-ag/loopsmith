@@ -66,6 +66,9 @@ Then repeat until the helper says stop:
    .sdlc` — and treat its findings as inputs, not gates. `pipeline.py propose .sdlc` turns the card's
    FAILING signals into `proposed` goal files (with the failing check wired as `verify_command`);
    the loop NEVER runs a `proposed` goal — a human promotes it to `pending` first.
+   With `config.ledger.enabled` on, the claim and the outcome are mirrored to the **team ledger**
+   automatically — never record those by hand. Record anything a TEAMMATE needs to see with
+   `python3 "${CLAUDE_SKILL_DIR}/scripts/ledger.py" append .sdlc note "$goal" --to <login> --why "…"`.
 7. Loop.
 
 **Self-improving (optional, gated):** when the backlog is empty (`next` → `DONE`) but the knowledge

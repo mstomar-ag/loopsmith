@@ -28,15 +28,34 @@ def summary(sdlc_dir):
         it = int(m.group(1)) if m else 0
     q = base / "state" / "review-queue.md"
     queue_nonempty = bool(q.exists() and re.search(r"^## ", q.read_text(), re.MULTILINE))
-    return {**counts, "iteration": it, "queue_nonempty": queue_nonempty}
+    return {**counts, "iteration": it, "queue_nonempty": queue_nonempty,
+            "ledger_entries": _ledger_entries(base)}
+
+
+def _ledger_entries(base):
+    """Ledger lines across every author's file. Zero when the ledger is off or absent, which
+    keeps the status line byte-identical for a repo that has not opted in."""
+    total = 0
+    entries = base / "ledger" / "entries"
+    if not entries.exists():
+        return 0
+    for path in sorted(entries.glob("*.jsonl")):
+        try:
+            total += sum(1 for line in path.read_text().splitlines() if line.strip())
+        except OSError:
+            continue
+    return total
 
 
 def main(argv):
     s = summary(argv[1] if len(argv) > 1 else ".sdlc")
-    print(f"backlog: {s['proposed']} proposed, {s['pending']} pending, {s['in_progress']} in-progress, "
-          f"{s['done']} done, {s['parked']} parked, {s['failed']} failed | "
-          f"iteration {s['iteration']} | "
-          f"review-queue: {'NEEDS ATTENTION' if s['queue_nonempty'] else 'empty'}")
+    line = (f"backlog: {s['proposed']} proposed, {s['pending']} pending, {s['in_progress']} in-progress, "
+            f"{s['done']} done, {s['parked']} parked, {s['failed']} failed | "
+            f"iteration {s['iteration']} | "
+            f"review-queue: {'NEEDS ATTENTION' if s['queue_nonempty'] else 'empty'}")
+    if s["ledger_entries"]:                    # silent when the ledger is off: same line as before
+        line += f" | ledger: {s['ledger_entries']} entries"
+    print(line)
     return 0
 
 

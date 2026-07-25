@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+### Coordination
+- **Team ledger** (`ledger: {"enabled": true}`, default OFF): a committed, append-only record of what
+  the loop did — `claimed` when it takes a goal, `done`/`parked`/`failed` when it finishes one — with
+  a timestamp and an actor on every line. **One file per person** (`.sdlc/ledger/entries/<actor>.jsonl`):
+  you only ever write your own, so concurrent appends can neither race on disk nor conflict in git;
+  the team view is their union, computed on read. Kinds `claimed · done · parked · failed · handoff ·
+  ack · release · note`; an entry with a `to` is addressed to that person. `ledger.py` renders
+  `TEAM.md`, lists what is addressed to you, and summarises outstanding hand-offs; `/sdlc-status`
+  reports the entry count and `/sdlc-doctor` reports the flag. Every write from the loop is fail-open
+  — a ledger problem can never stop a run. Absent config = byte-compatible with 0.6.0.
+
 ### Backlog
 - **Per-owner discovery scope**: `discovery.github.assignee` (e.g. `"@me"`) makes the loop pick only
   issues assigned to that user, so several people can run the loop against one shared board/Project

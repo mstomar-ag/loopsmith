@@ -29,7 +29,13 @@
     "on_block": "park"
   },
   "verify": { "command": "", "enforce": false },
-  
+  "ledger": {
+    "enabled": false,
+    "_comment": "Append-only team record of what the loop did: .sdlc/ledger/entries/<actor>.jsonl, ONE FILE PER PERSON (you only ever write your own, so concurrent appends cannot conflict). The team view is their union - render it with `ledger.py render <dir> --write`. Off by default; absent, the loop behaves exactly as before.",
+    "actor": "",
+    "_actor": "Your handle in the ledger. Empty = resolved from the authenticated account (`gh api user`), else the shell user."
+  },
+
   "companions": "auto",
   "model_selection": "off",
   "_model_selection_options": "off (phases run at the session model) | auto (predict a tier per goal via /sdlc-model, run that goal's phases as subagents at it)",

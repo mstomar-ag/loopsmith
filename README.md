@@ -142,6 +142,7 @@ Every option LoopSmith provides, at a glance:
 | **Bidirectional report card** | Declare your pipeline's stages once; every stage gets a forward (nothing dropped) + reverse (nothing invented) lane — uninstrumented lanes read ABSENT, never green — with a recurrence delta across runs | `.sdlc/pipeline.json` + `pipeline.py card` |
 | **Model + effort auto-selection (opt-in)** | Per-goal ceiling AND per-step downgrade: mechanical steps run on a cheaper tier/effort (`model_selection: "auto"`, default off) | `predict.py resolve / resolve-step` |
 | **Findings become work** | The card's failing signals become `proposed` goals (proof-of-fix pre-wired); the loop never runs one until you promote it | `pipeline.py propose` |
+| **Team ledger (opt-in)** | A committed, append-only record of what the loop did — **one file per person**, so concurrent appends can't conflict; the team view is their union | `ledger.py`, `ledger.enabled` |
 | **Pluggable backlog** | Local goal files, GitHub issues, or a GitHub **Projects v2 board** | `discovery.source` |
 | **Board + audit trail** | Cards flow Backlog → In Progress → QC → Done → Blocked; every phase recorded on the issue | `/sdlc-init --github` |
 | **Self-improving knowledge graph** | Captures research + lessons, **tracks what it doesn't know**, prunes itself, and fills gaps | `/sdlc-kg` |
@@ -188,6 +189,7 @@ Everything optional ships OFF — `/sdlc-doctor` prints this dashboard live (`do
 | `verify: {"enforce": true}` | off | `record done` refused without fresh machine evidence (`loop.py verify`) |
 | `gates.hard_plan_gate.enabled` | off | source edits mechanically denied without a fresh `.sdlc/plans/*.md` |
 | `.sdlc/pipeline.json` | absent | the bidirectional report card + `propose` (findings → groomable goals) |
+| `ledger: {"enabled": true}` | off | the committed team ledger — claims and outcomes recorded per author |
 | `budget.max_minutes` / `max_tokens` | unset | wall-clock / host-reported token ceilings (iterations always enforce) |
 | `knowledge_graph.enabled` | off | research capture + the self-improving graph |
 | `LOOPSMITH_GATE_GLOBAL=1` (env) | unset | restores the pre-0.6 always-on prompt gate |
@@ -397,6 +399,56 @@ mode. Recording is **fail-open** (never breaks a run).
 **Which to pick?** **Local** for a self-contained, zero-dependency repo where the backlog ships with
 the code. **GitHub** to keep goals visible to your team, triaged in Issues/Projects, and tied to the
 PRs the work produces.
+
+---
+
+## The team ledger (optional, off by default)
+
+The review queue answers *"what stopped?"* for one person on one machine — and it's gitignored, so
+nobody else ever sees it. Once more than one person runs the loop against a repo, that isn't enough:
+you need a **committed** record of what everyone's loop actually did, with a timestamp and a name on
+every line.
+
+Turn it on:
+
+```json
+"ledger": { "enabled": true }
+```
+
+From then on the loop records a `claimed` line when it takes a goal and an outcome line
+(`done` · `parked` · `failed`) when it finishes one. Every call is **fail-open** — a ledger problem
+can never stop a run.
+
+```
+.sdlc/ledger/
+├── entries/<actor>.jsonl   one file per person — you only ever write your own
+└── TEAM.md                 generated view; regenerate, never hand-edit
+```
+
+**Why one file per person.** Two people appending to a shared file race in the filesystem and then
+conflict again in git. Owning exactly one file each removes both by construction, and the team view
+is simply their union, computed on read. Your handle comes from `ledger.actor`, else the
+authenticated account (`gh api user`), else the shell user.
+
+Read it:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/skills/sdlc-loop/scripts/ledger.py" summary .sdlc  # counts + open hand-offs
+python3 "${CLAUDE_PLUGIN_ROOT}/skills/sdlc-loop/scripts/ledger.py" mine    .sdlc  # addressed to me
+python3 "${CLAUDE_PLUGIN_ROOT}/skills/sdlc-loop/scripts/ledger.py" render  .sdlc --write
+```
+
+Write anything else explicitly — kinds are
+`claimed · done · parked · failed · handoff · ack · release · note`:
+
+```bash
+ledger.py append .sdlc note 0007-cache.md --why "spike looks viable"
+```
+
+An entry with a `to` is **addressed** to that person: it lands in the team view and in their
+`ledger.py mine`. A `handoff` names the issue that carries the dependency, and an `ack` closes it out
+with a `state` — `accepted · deferred · declined · resolved`. `/sdlc-status` reports the entry count;
+`/sdlc-doctor` reports whether the ledger is on.
 
 ---
 

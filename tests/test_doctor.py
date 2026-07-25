@@ -101,3 +101,17 @@ def test_features_dashboard_reports_states(tmp_path):
     assert rows["machine-checked done (verify.enforce)"].startswith("ON")
     assert "off" in rows["hard plan-gate (deny source edits w/o fresh plan)"]
     assert rows["backlog source"] == "local-goals"
+    assert rows["team ledger"].startswith("off")           # an absent block reads as off
+
+
+def test_features_reports_the_ledger_and_counts_its_entries(tmp_path):
+    import json, importlib.util, pathlib as _pl
+    spec = importlib.util.spec_from_file_location(
+        "doctor", _pl.Path(__file__).resolve().parent.parent / "skills" / "sdlc-doctor" / "scripts" / "doctor.py")
+    d = importlib.util.module_from_spec(spec); spec.loader.exec_module(d)
+    base = tmp_path / ".sdlc"; base.mkdir()
+    base.joinpath("config.json").write_text(json.dumps({"ledger": {"enabled": True}}))
+    entries = base / "ledger" / "entries"; entries.mkdir(parents=True)
+    (entries / "amy.jsonl").write_text('{"kind":"done"}\n')
+    rows = {name: state for name, state, _ in d.features(str(base))}
+    assert rows["team ledger"] == "ON — 1 entry in .sdlc/ledger/entries/"

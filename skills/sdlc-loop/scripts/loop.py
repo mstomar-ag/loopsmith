@@ -3,7 +3,9 @@ the agent's CLI hooks into the same primitives. Budgets (all per-run, reset each
 max_iterations always enforces; max_minutes enforces by wall-clock from the run's start; max_tokens
 enforces against the host-REPORTED spend counter (`loop.py spend <dir> <n>` — the loop never measures
 spend itself; no reports == no enforcement). An absent/zero key enforces nothing, so a config without
-it behaves exactly as before. The irreversible-action gate is enforced by /sdlc-loop SKILL.md prose."""
+it behaves exactly as before. The irreversible-action gate is enforced by /sdlc-loop SKILL.md prose.
+Claim and outcome are mirrored to the team ledger (ledger.py) when `ledger.enabled` is on — every
+such call is fail-open, so a ledger problem can never stop a run."""
 import sys, pathlib, importlib.util, time
 
 _HERE = pathlib.Path(__file__).resolve().parent
@@ -16,6 +18,7 @@ def _load(name):
 
 state = _load("state")
 sources = _load("sources")          # backlog source: local files or GitHub issues (config-selected)
+ledger = _load("ledger")            # team record (config-gated, default OFF; every call is fail-open)
 
 
 def _budget_spent(cursor, budget):
@@ -42,6 +45,7 @@ def _next(sdlc_dir, source, config):
     if _budget_spent(state.load_cursor(sdlc_dir), config.get("budget", {})):
         return ("BUDGET", None)
     source.mark_in_progress(goal)
+    ledger.safe_append(sdlc_dir, "claimed", goal, config=config)
     return ("goal", goal)
 
 
@@ -55,6 +59,9 @@ def _record(sdlc_dir, source, goal, result, detail=""):
     cur = state.load_cursor(sdlc_dir)
     state.save_cursor(sdlc_dir, cur["iteration"] + 1, cur["run_iteration"] + 1,
                       f"last: {pathlib.Path(goal).name} -> {result}")
+    # The outcome, once, on the single chokepoint both the CLI and run_loop paths pass through.
+    ledger.safe_append(sdlc_dir, result if result in ("done", "failed") else "parked", goal,
+                       why=detail or None)
 
 
 def _evidence_path(sdlc_dir, goal):

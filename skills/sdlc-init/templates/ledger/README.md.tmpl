@@ -1,0 +1,33 @@
+# Ledger — {{PROJECT_NAME}}
+
+The team's shared record of what the loop did. Commit this directory.
+
+```
+ledger/
+├── entries/<actor>.jsonl   one file per person — you only ever write your own
+└── TEAM.md                 generated view; regenerate, never hand-edit
+```
+
+**Why one file per person.** Concurrent appends to a shared file conflict, in the filesystem
+and again in git. Owning exactly one file each removes the conflict by construction; the team
+view is the union of the files, computed on read.
+
+**Read it:**
+
+```bash
+python3 <loop-scripts>/ledger.py summary .sdlc          # counts + outstanding hand-offs
+python3 <loop-scripts>/ledger.py mine    .sdlc          # what is addressed to me
+python3 <loop-scripts>/ledger.py render  .sdlc --write  # regenerate TEAM.md
+```
+
+**Write it** — the loop records `claimed` and the outcome by itself once
+`"ledger": {"enabled": true}` is set. Anything else is an explicit append:
+
+```bash
+python3 <loop-scripts>/ledger.py append .sdlc note 0007-cache.md --why "spike looks viable"
+```
+
+One line per entry: `id · ts · actor · kind · goal`, plus any of
+`area · to · issue · priority · why · state · ref`. Kinds are
+`claimed · done · parked · failed · handoff · ack · release · note`.
+An entry with a `to` is addressed to that person and shows up in the team view.
