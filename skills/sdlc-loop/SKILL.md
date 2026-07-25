@@ -45,6 +45,16 @@ Then repeat until the helper says stop:
    - a failure you cannot resolve — record THIS one as `failed` (see step 6): parked means
      "needs a human decision", failed means "needs a fix"; the queue separates the two.
 
+   **Blocked on someone else's AREA? Hand it off before you park.** A dependency in code another
+   person owns is not a decision for the user — parking it silently tells nobody and the work
+   stalls until a human happens to notice. Instead:
+   `python3 "${CLAUDE_SKILL_DIR}/scripts/handoff.py" open .sdlc "$goal" --area <area> --why "<what
+   is needed>" [--priority P0|P1|P2]`. It resolves the owner from the repo's CODEOWNERS, opens an
+   issue in their area **assigned to them and carrying the goal label** — so their own loop picks
+   it up — records it in the team ledger addressed to them, and links it from this issue. THEN park
+   this goal as normal. Degrades honestly: with no owner, no `gh`, or a local backlog it still
+   records the ledger entry.
+
    As you complete each phase, **record it** so the issue timeline is the audit trail:
    `python3 "${CLAUDE_SKILL_DIR}/scripts/loop.py" note .sdlc "$goal" "<phase>: <key findings / decisions>"`.
    For a decision/finding/fix worth keeping, record a 🔒 Critical Insight (the

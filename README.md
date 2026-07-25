@@ -143,6 +143,7 @@ Every option LoopSmith provides, at a glance:
 | **Model + effort auto-selection (opt-in)** | Per-goal ceiling AND per-step downgrade: mechanical steps run on a cheaper tier/effort (`model_selection: "auto"`, default off) | `predict.py resolve / resolve-step` |
 | **Findings become work** | The card's failing signals become `proposed` goals (proof-of-fix pre-wired); the loop never runs one until you promote it | `pipeline.py propose` |
 | **Team ledger (opt-in)** | A committed, append-only record of what the loop did — **one file per person**, so concurrent appends can't conflict; the team view is their union | `ledger.py`, `ledger.enabled` |
+| **Cross-area hand-off** | Blocked on someone else's code? It resolves the owner from CODEOWNERS, opens an issue **assigned to them** (so their loop picks it up), and records it — instead of parking into silence | `handoff.py open` / `ack` |
 | **Pluggable backlog** | Local goal files, GitHub issues, or a GitHub **Projects v2 board** | `discovery.source` |
 | **Board + audit trail** | Cards flow Backlog → In Progress → QC → Done → Blocked; every phase recorded on the issue | `/sdlc-init --github` |
 | **Self-improving knowledge graph** | Captures research + lessons, **tracks what it doesn't know**, prunes itself, and fills gaps | `/sdlc-kg` |
@@ -446,9 +447,36 @@ ledger.py append .sdlc note 0007-cache.md --why "spike looks viable"
 ```
 
 An entry with a `to` is **addressed** to that person: it lands in the team view and in their
-`ledger.py mine`. A `handoff` names the issue that carries the dependency, and an `ack` closes it out
-with a `state` — `accepted · deferred · declined · resolved`. `/sdlc-status` reports the entry count;
-`/sdlc-doctor` reports whether the ledger is on.
+`ledger.py mine`. `/sdlc-status` reports the entry count; `/sdlc-doctor` reports whether the ledger
+is on.
+
+### Blocked on someone else's area? Hand it off, don't park into silence
+
+Parking is right for a decision only a human can make. It is the wrong answer for a **dependency in
+code another person owns** — the queue entry is local and gitignored, the issue comment is
+unaddressed, and the work stalls until someone happens to notice.
+
+```bash
+handoff.py open .sdlc "$goal" --area engine --why "auto-restart needs an engine feature flag" --priority P0
+```
+
+That resolves the owner from the repo's own `.github/CODEOWNERS` (the roster your host already
+enforces on every PR — no second list to keep true), opens an issue in their area **assigned to them
+and carrying the goal label**, records a `handoff` entry addressed to them, and links it from the
+blocked issue. Then the goal parks as usual and the loop moves on.
+
+The delivery needs no new machinery: because the new issue is a goal issue with an assignee, **the
+owner's own loop picks it up** through the `discovery.github.assignee` filter. The other half is an
+answer — taking it, needing time, declining, or closing it out:
+
+```bash
+handoff.py ack .sdlc --issue 61 --state accepted --why "after the current slice"
+```
+
+`deferred` deliberately does *not* settle a hand-off — a promise to look later is not a resolution,
+so `ledger.py summary` keeps showing it. Override the roster per area with `ledger.owners` when your
+directory layout doesn't match your area vocabulary. Every step degrades honestly: no owner, no `gh`,
+or a local backlog still writes the ledger entry.
 
 ---
 

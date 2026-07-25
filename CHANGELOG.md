@@ -13,6 +13,17 @@
   reports the entry count and `/sdlc-doctor` reports the flag. Every write from the loop is fail-open
   — a ledger problem can never stop a run. Absent config = byte-compatible with 0.6.0.
 
+- **Cross-area hand-off** — parking with a successor instead of parking into silence. A blocker in
+  code someone else owns is not a decision for the user, but until now it parked like one: a
+  gitignored queue entry, an unaddressed issue comment, and no code path in the kit had ever set an
+  assignee. `handoff.py open` resolves the owner from the repo's own `.github/CODEOWNERS` (override
+  per area with `ledger.owners`), opens an issue in their area **assigned to them and carrying the
+  goal label** — so their own loop picks it up through the `assignee` filter, no new transport —
+  records a `handoff` ledger entry addressed to them, and links it from the blocked issue. Then the
+  goal parks as before. `handoff.py ack --state accepted|deferred|declined|resolved` is the answer;
+  `deferred` deliberately does not settle it. Degrades honestly with no owner, no `gh`, or a local
+  backlog: the ledger entry is still written.
+
 ### Backlog
 - **Per-owner discovery scope**: `discovery.github.assignee` (e.g. `"@me"`) makes the loop pick only
   issues assigned to that user, so several people can run the loop against one shared board/Project

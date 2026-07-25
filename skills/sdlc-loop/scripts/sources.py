@@ -193,6 +193,34 @@ class GitHubSource:
         # record on the issue timeline (the audit trail): a journey-log / critical-insight comment
         self._run(["issue", "comment", goal, *self._repo_args(), "--body", text])
 
+    def issue_url(self, goal):
+        return self._issue_url(goal)
+
+    def create_dependency(self, title, body, assignee, labels=()):
+        """Open an issue carrying a cross-area dependency and hand it to its owner. Returns the new
+        issue number, or None when `gh` did not hand one back.
+
+        It carries the GOAL label deliberately: an assigned goal issue is picked up by that person's
+        OWN loop through the `assignee` filter, so a hand-off routes itself over the backlog the team
+        already shares — no new transport and no daemon. This is the only place the kit ever SETS an
+        assignee, and it is the point: parking told nobody, this tells exactly one person."""
+        self._ensure_labels()
+        for label in labels:
+            try:
+                self._run(["label", "create", label, *self._repo_args(),
+                           "--color", "d4c5f9", "--force"])
+            except Exception:
+                pass                       # a missing label must not stop the hand-off
+        args = ["issue", "create", *self._repo_args(), "--title", title, "--body", body,
+                "--label", self.goal_label]
+        if assignee:
+            args += ["--assignee", assignee]
+        for label in labels:
+            args += ["--label", label]
+        out = (self._run(args) or "").strip().splitlines()
+        number = out[-1].rstrip("/").rsplit("/", 1)[-1] if out else ""
+        return number if number.isdigit() else None
+
     # ----- Projects-v2 board (best-effort mirror of issue status onto a kanban board) -----
     # SDLC status -> GitHub's built-in "Status" single-select. The whole layer is fail-open: a missing
     # `project` token scope, an API hiccup, anything — it swallows the error so the loop never breaks.

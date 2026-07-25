@@ -33,7 +33,11 @@
     "enabled": false,
     "_comment": "Append-only team record of what the loop did: .sdlc/ledger/entries/<actor>.jsonl, ONE FILE PER PERSON (you only ever write your own, so concurrent appends cannot conflict). The team view is their union - render it with `ledger.py render <dir> --write`. Off by default; absent, the loop behaves exactly as before.",
     "actor": "",
-    "_actor": "Your handle in the ledger. Empty = resolved from the authenticated account (`gh api user`), else the shell user."
+    "_actor": "Your handle in the ledger. Empty = resolved from the authenticated account (`gh api user`), else the shell user.",
+    "owners": {},
+    "_owners": "Optional area -> owner overrides, e.g. {\"engine\": \"@some-login\"}. Empty = the roster is the repo's own .github/CODEOWNERS, which the host already enforces on every PR.",
+    "handoff": { "label": "sdlc:dependency" },
+    "_handoff": "A cross-area blocker opens an issue in the owner's area, assigned to them and carrying the goal label, so their own loop picks it up. See handoff.py."
   },
 
   "companions": "auto",
