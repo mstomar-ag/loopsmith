@@ -70,7 +70,11 @@ def project_root(sdlc_dir):
 
 
 def worktree(sdlc_dir):
-    return ledger.ledger_dir(sdlc_dir)
+    """ABSOLUTE on purpose. Every git call here runs with `-C <some other directory>`, so a relative
+    path would be resolved against THAT directory, not the caller's cwd — `git worktree add` would
+    silently create the worktree in the wrong place and the next write would land nowhere. Callers
+    routinely pass a relative `.sdlc`."""
+    return ledger.ledger_dir(sdlc_dir).resolve()
 
 
 def _run_git(cwd, args):

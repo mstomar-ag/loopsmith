@@ -319,3 +319,13 @@ def test_watch_sh_stops_after_max_ticks(tmp_path):
                                "LOOPSMITH_WATCH_MAX_TICKS": "2"})
     assert proc.returncode == 0 and "max ticks (2)" in proc.stdout
     assert (d / "state" / "watch.log").exists()
+
+def test_worktree_path_is_absolute_even_for_a_relative_sdlc_dir(tmp_path, monkeypatch):
+    """Regression: every git call runs with `-C <elsewhere>`, so a relative worktree path made
+    `git worktree add` create the worktree under the PROJECT ROOT's own name (a/.sdlc/ledger inside
+    a/) and the next write landed nowhere. Caught by a two-clone e2e, not by the unit tests, because
+    they all passed tmp_path — which is already absolute."""
+    (tmp_path / "proj" / ".sdlc").mkdir(parents=True)
+    monkeypatch.chdir(tmp_path)
+    assert sync.worktree("proj/.sdlc").is_absolute()
+    assert sync.worktree("proj/.sdlc") == (tmp_path / "proj" / ".sdlc" / "ledger").resolve()

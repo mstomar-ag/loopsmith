@@ -310,3 +310,36 @@ def test_loop_maps_any_non_terminal_result_onto_parked(tmp_path):
     loop._record(str(d), Source(), "0001-a.md", "whatever", "some reason")
     entry = ledger.read_all(d)[0]
     assert entry["kind"] == "parked" and entry["why"] == "some reason"
+
+def test_handoff_states_and_unanswered_separate_stuck_from_in_progress():
+    """`outstanding` alone cannot tell a hand-off nobody has looked at from one someone has taken —
+    both are still blocking, but only the first needs chasing. Found by a two-clone e2e: the summary
+    line read the same before and after the recipient accepted."""
+    handoff_a = {"kind": "handoff", "issue": 61, "goal": "a", "to": "bo"}
+    handoff_b = {"kind": "handoff", "issue": 62, "goal": "b", "to": "bo"}
+    entries = [handoff_a, handoff_b, {"kind": "ack", "issue": 61, "state": "accepted"}]
+    assert ledger.handoff_states(entries) == {"61": "accepted"}
+    assert ledger.outstanding(entries) == [handoff_a, handoff_b]        # accepted is not resolved
+    assert ledger.unanswered(entries) == [handoff_b]                    # only 62 is truly stuck
+
+
+def test_handoff_key_falls_back_to_the_goal_without_an_issue():
+    assert ledger.handoff_key({"issue": 7, "goal": "g"}) == "7"
+    assert ledger.handoff_key({"goal": "g"}) == "g"                     # local backlog: no issues
+
+
+def test_render_shows_the_reply_state_per_row():
+    handoff = {"ts": "t", "actor": "amy", "kind": "handoff", "goal": "g", "to": "bo", "issue": 61}
+    assert "**open — no reply**" in ledger.render([handoff])
+    answered = ledger.render([handoff, {"kind": "ack", "issue": 61, "state": "accepted"}])
+    assert "| accepted |" in answered and "no reply" not in answered
+
+
+def test_summary_line_calls_out_unanswered_handoffs(tmp_path, capsys):
+    d = _sdlc(tmp_path, ON)
+    ledger.append(d, ON, "handoff", "g.md", to="bo", issue=61)
+    ledger.main(["ledger.py", "summary", str(d)])
+    assert "1 with NO reply" in capsys.readouterr().out
+    ledger.append(d, ON, "ack", "g.md", issue=61, state="accepted")
+    ledger.main(["ledger.py", "summary", str(d)])
+    assert "all answered" in capsys.readouterr().out

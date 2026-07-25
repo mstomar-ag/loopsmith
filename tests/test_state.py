@@ -58,3 +58,25 @@ def test_set_line_value_with_backslash_is_literal():
     st = _state()
     out = st._set_line("last_run: none\n", "last_run", r"done g\1")
     assert "last_run: done g\\1" in out
+
+def test_state_and_queue_scaffold_themselves_on_a_fresh_clone(tmp_path):
+    """Regression: `.sdlc/state/` is gitignored by design, so a teammate cloning an ADOPTED repo has
+    config + goals but no state files — and every entry point died on FileNotFoundError before their
+    first goal. Found by a two-clone e2e; unit tests all pre-created the files."""
+    s = _state()
+    d = tmp_path / ".sdlc"
+    (d / "goals").mkdir(parents=True)                    # note: no state/ directory at all
+    goal = d / "goals" / "0001.md"
+    goal.write_text("---\nstatus: pending\n---\nx\n")
+
+    assert s.load_cursor(str(d)) == {"iteration": 0, "run_iteration": 0,
+                                     "run_started_at": 0, "run_tokens": 0}
+    s.start_run(str(d))
+    s.save_cursor(str(d), 1, 1, "last: 0001.md -> done")
+    assert s.load_cursor(str(d))["iteration"] == 1
+    assert "# Loop State" in (d / "state" / "STATE.md").read_text()
+
+    s.park(str(d), str(goal), "needs a decision")        # queue absent too
+    queue = (d / "state" / "review-queue.md").read_text()
+    assert "# Morning Review Queue" in queue and "- needs: human review" in queue
+

@@ -72,6 +72,20 @@ and no `parallel` block in config.json the loop behaves exactly as 0.6.0 did.
   file in the kit. `/sdlc-doctor` reports the flag. Absent config, or no manifest, and every goal runs
   as one unit exactly as before.
 
+### Fixed
+- **A fresh clone of an adopted repo can run the loop** *(bug-fix class, applies with or without the
+  ledger)*: `.sdlc/state/` is gitignored by design — it is per-machine runtime — so a teammate who
+  clones a repo that has already adopted the spine gets the committed config and goals but **no state
+  files at all**, and `loop.py start` / `next` / `record` died on a raw `FileNotFoundError` before
+  their first goal. `STATE.md` and `review-queue.md` are now scaffolded on first use. Nothing changes
+  for a repo whose state already exists.
+- **The ledger worktree path is resolved before it reaches git.** Every git call runs with
+  `-C <another directory>`, so a relative `.sdlc` made `git worktree add` create the worktree under
+  the project root's own name and the next write landed nowhere.
+- **`ledger.py summary` and `TEAM.md` distinguish an unanswered hand-off from one someone has taken.**
+  Both are outstanding — the blocker is real until it is `resolved` — but only the first needs
+  chasing, and a bare count could not say which was which.
+
 ### Backlog routing
 - **Per-owner discovery scope**: `discovery.github.assignee` (e.g. `"@me"`) makes the loop pick only
   issues assigned to that user, so several people can run the loop against one shared board/Project

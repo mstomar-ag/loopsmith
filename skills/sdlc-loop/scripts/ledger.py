@@ -216,6 +216,31 @@ def addressed_to(entries, who):
     return [e for e in entries if e.get("to") == who]
 
 
+def handoff_key(entry):
+    """What pairs a hand-off with its answers. The issue when there is one, else the goal — a local
+    backlog has no issue numbers but still needs the two halves to find each other."""
+    return str(entry.get("issue") or entry.get("goal"))
+
+
+def handoff_states(entries):
+    """{key: the latest ack state}, `open` where nobody has answered.
+
+    A lead has to tell "nobody has even looked at this" from "someone took it and is working on it".
+    Both are outstanding — the blocker is still real until it is `resolved` — but only the first one
+    needs chasing, and a bare count cannot say which is which."""
+    latest = {}
+    for entry in entries:
+        if entry.get("kind") == "ack" and entry.get("state"):
+            latest[handoff_key(entry)] = entry["state"]
+    return latest
+
+
+def unanswered(entries):
+    """Outstanding hand-offs nobody has replied to at all — the ones that are actually stuck."""
+    states = handoff_states(entries)
+    return [e for e in outstanding(entries) if handoff_key(e) not in states]
+
+
 def outstanding(entries):
     """Hand-offs nobody has closed out. A hand-off is settled once an `ack` for the same issue
     reaches a terminal state; `deferred` deliberately stays outstanding — a promise to look
@@ -258,17 +283,22 @@ def render(entries, recent=25):
         "",
     ]
     open_ones = outstanding(entries)
+    states = handoff_states(entries)
     lines += ["## Waiting on someone", ""]
     if open_ones:
-        lines += ["| when | from | to | priority | issue | what |", "|---|---|---|---|---|---|"]
+        lines += ["| when | from | to | priority | issue | state | what |",
+                  "|---|---|---|---|---|---|---|"]
         for entry in open_ones:
             lines.append(
-                "| {ts} | {actor} | {to} | {priority} | {issue} | {why} |".format(
+                "| {ts} | {actor} | {to} | {priority} | {issue} | {state} | {why} |".format(
                     ts=entry.get("ts", ""),
                     actor=entry.get("actor", ""),
                     to=entry.get("to", ""),
                     priority=entry.get("priority", "-"),
                     issue=entry.get("issue", "-"),
+                    # `open` = nobody has replied. Shown per row because a count of "outstanding"
+                    # cannot distinguish a stuck hand-off from one someone is already working.
+                    state=states.get(handoff_key(entry), "**open — no reply**"),
                     why=_cell(entry.get("why") or entry.get("goal", "")),
                 )
             )
@@ -356,9 +386,12 @@ def main(argv):
     if len(argv) >= 3 and argv[1] == "summary":
         entries = read_all(argv[2])
         tally = counts(entries)
+        still_open, no_reply = outstanding(entries), unanswered(entries)
         print(f"ledger: {len(entries)} entries | "
               + ", ".join(f"{k} {v}" for k, v in tally.items() if v)
-              + f" | outstanding hand-offs: {len(outstanding(entries))}")
+              + f" | outstanding hand-offs: {len(still_open)}"
+              + (f" ({len(no_reply)} with NO reply)" if no_reply else " (all answered)"
+                 if still_open else ""))
         return 0
     print("usage: ledger.py append <dir> <kind> <goal> [--to X --issue N --priority P "
           "--why TEXT --state S --area A --ref R] | render <dir> [--write] | "

@@ -75,8 +75,10 @@ def render_inbox(items, me):
     urgent, and the one command that answers it."""
     if not items:
         return ""
+    plural = len(items) != 1
     lines = [f"# Inbox — {me}", "",
-             f"{len(items)} item{'s' if len(items) != 1 else ''} from the team ledger need you.",
+             f"{len(items)} item{'s' if plural else ''} from the team ledger "
+             f"{'need' if plural else 'needs'} you.",
              "Answer each with `handoff.py ack .sdlc --issue <n> --state "
              "accepted|deferred|declined|resolved [--why ...]`.", ""]
     for entry in items:

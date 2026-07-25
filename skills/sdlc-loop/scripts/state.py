@@ -10,8 +10,37 @@ def load_config(sdlc_dir):
     return json.loads((pathlib.Path(sdlc_dir) / "config.json").read_text())
 
 
+_STATE_TEMPLATE = """# Loop State
+
+<!-- Machine-written by /sdlc-loop. Do not hand-edit during a run. -->
+
+iteration: 0
+run_iteration: 0
+last_run: none
+
+## Items
+<!-- per-item status lives in goals/*.md frontmatter -->
+"""
+
+_QUEUE_TEMPLATE = """# Morning Review Queue
+
+<!-- Parked items from autonomous runs land here with full context. -->
+<!-- Empty = nothing needs you. -->
+"""
+
+
 def _state_file(sdlc_dir):
-    return pathlib.Path(sdlc_dir) / "state" / "STATE.md"
+    """The run cursor, created on demand.
+
+    `.sdlc/state/` is gitignored by design (it is per-machine runtime), so a teammate who CLONES an
+    adopted repo has the committed config and goals but no state files at all — and every entry point
+    here used to die on a raw FileNotFoundError before their first goal. Scaffolding on first read
+    costs nothing and is the difference between `/sdlc-loop` working on a fresh clone and not."""
+    f = pathlib.Path(sdlc_dir) / "state" / "STATE.md"
+    if not f.exists():
+        f.parent.mkdir(parents=True, exist_ok=True)
+        f.write_text(_STATE_TEMPLATE)
+    return f
 
 
 def _read_int(text, key):
@@ -87,6 +116,9 @@ def fail(sdlc_dir, goal_path, reason):
 
 def _queue(sdlc_dir, goal_path, reason, needs):
     q = pathlib.Path(sdlc_dir) / "state" / "review-queue.md"
+    if not q.exists():            # same reason as _state_file: gitignored, so absent on a fresh clone
+        q.parent.mkdir(parents=True, exist_ok=True)
+        q.write_text(_QUEUE_TEMPLATE)
     name = pathlib.Path(goal_path).name
-    with q.open("a") as f:        # append-mode: race-safe (single-worker), header written once by scaffolder
+    with q.open("a") as f:        # append-mode: race-safe (single-worker), header written once
         f.write(f"\n## {name}\n- reason: {reason}\n- needs: {needs}\n")
