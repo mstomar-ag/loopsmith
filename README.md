@@ -145,6 +145,7 @@ Every option LoopSmith provides, at a glance:
 | **Team ledger (opt-in)** | A committed, append-only record of what the loop did — **one file per person**, so concurrent appends can't conflict; the team view is their union | `ledger.py`, `ledger.enabled` |
 | **Cross-area hand-off** | Blocked on someone else's code? It resolves the owner from CODEOWNERS, opens an issue **assigned to them** (so their loop picks it up), and records it — instead of parking into silence | `handoff.py open` / `ack` |
 | **Ledger watcher** | Pulls the ledger's own ops branch on an interval — never your working tree — and surfaces what needs you between goals, deduped | `watch.sh`, `sync.py` |
+| **Slice parallelism (opt-in)** | Declare a goal's slices and the files each touches; independent ones run as concurrent subagents in **waves** (own worktree each), instead of burning one session's context in sequence | `slices.py plan`, `parallel.enabled` |
 | **Pluggable backlog** | Local goal files, GitHub issues, or a GitHub **Projects v2 board** | `discovery.source` |
 | **Board + audit trail** | Cards flow Backlog → In Progress → QC → Done → Blocked; every phase recorded on the issue | `/sdlc-init --github` |
 | **Self-improving knowledge graph** | Captures research + lessons, **tracks what it doesn't know**, prunes itself, and fills gaps | `/sdlc-kg` |
@@ -193,6 +194,7 @@ Everything optional ships OFF — `/sdlc-doctor` prints this dashboard live (`do
 | `.sdlc/pipeline.json` | absent | the bidirectional report card + `propose` (findings → groomable goals) |
 | `ledger: {"enabled": true}` | off | the committed team ledger — claims and outcomes recorded per author, plus cross-area hand-off |
 | `ledger.watch.interval_seconds` | 900 | how often `watch.sh` pulls the ledger ops branch and refreshes the inbox |
+| `parallel: {"enabled": true}` | off | a goal's independent slices run concurrently in waves (`max_concurrent`, default 3) from `.sdlc/plans/<goal>.slices.json` |
 | `budget.max_minutes` / `max_tokens` | unset | wall-clock / host-reported token ceilings (iterations always enforce) |
 | `knowledge_graph.enabled` | off | research capture + the self-improving graph |
 | `LOOPSMITH_GATE_GLOBAL=1` (env) | unset | restores the pre-0.6 always-on prompt gate |
@@ -518,6 +520,69 @@ A `P0` should be taken *next*, not *now*.
 Two independent suppressions keep it quiet: a per-author cursor so history isn't re-read every tick,
 and a `kind:issue:state` signature so a colleague's rebase can't replay old mentions at you. A
 *state change* on the same issue is news and does fire.
+
+---
+
+## Slice parallelism (optional, off by default)
+
+A goal is planned as slices, and the loop runs them one after another — even when three of them touch
+nothing in common. That isn't only slow: a long goal spends **one session's context** on work that had
+no reason to share a window, so the last slice starts on a flushed one.
+
+Turn it on:
+
+```json
+"parallel": { "enabled": false, "max_concurrent": 3 }
+```
+
+Then declare the slices beside the goal's plan, in `.sdlc/plans/<goal-stem>.slices.json`:
+
+```json
+[
+  {"id": "s0", "title": "extract the config reader", "files": ["config/**"]},
+  {"id": "s1", "title": "rewrite the loader", "needs": ["s0"], "files": ["engine/loader.py"]},
+  {"id": "s2", "title": "new CLI flag",       "needs": ["s0"], "files": ["cli/**"]},
+  {"id": "s3", "title": "migrate the schema", "needs": ["s1"], "files": ["db/**"], "size": "large"}
+]
+```
+
+`needs`, `files`, `size` (`small` · `large`) and `status` (`pending` · `done`) are all optional.
+
+```bash
+slices.py plan     .sdlc "$goal" [--max N]   # the dispatch plan, wave by wave
+slices.py frontier .sdlc "$goal"             # what is runnable right now, one id per line
+slices.py check    .sdlc "$goal"             # validate only — exit 1 with the problems listed
+```
+
+**Waves, not a thread pool.** `plan` takes the runnable frontier (not done, every `needs` already
+done), packs a **wave** of mutually non-conflicting slices capped at `max_concurrent`, and repeats.
+Widest fan-out goes first, so a wave is never spent on leaves while the critical path waits, and the
+ordering is fully deterministic — you can read the plan before anything is dispatched. `check` reports
+unknown dependencies, duplicate ids, and **dependency cycles by their members** (you have to know
+which edge to break).
+
+**The conflict rule is deliberately paranoid.** Two slices conflict when their `files` globs *can*
+overlap — `fnmatch` in both directions plus a literal-prefix check, so `engine/**` and
+`engine/graph.py` are correctly seen as the same blast radius. **A slice that declares no files
+conflicts with everything** and runs alone: an unknown blast radius is not something you may
+parallelise, and one lost edit costs far more than one extra wave. Every slice that *does* declare
+files is dispatched with **`isolation: worktree`**, so concurrent siblings can't see or stomp each
+other's half-finished work.
+
+**Where this stops, honestly.** `/sdlc-loop` runs a wave's slices as **subagents** — fresh isolated
+context each, which is a documented, dependable primitive. It does **not** drive the Claude desktop
+app's "chips": that mechanism is app-internal and **not a public API for plugins**, so building on it
+would be building on something that can move without notice. So a slice marked `"size": "large"` — too
+big for one subagent's context — is dispatched as `session`, and the plan **prints the exact command
+for you to start**:
+
+```
+claude --worktree 0007-cache-s3
+```
+
+The loop never runs it for you. It also never shells out to an unattended `claude -p`: that's uncapped
+spend, and it would put a second worker on one `.sdlc`, which every state file in the kit assumes never
+happens. Leave `parallel` off, or ship no manifest, and every goal runs as one unit exactly as before.
 
 ---
 

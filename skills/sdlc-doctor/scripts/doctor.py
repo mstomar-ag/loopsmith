@@ -87,6 +87,7 @@ def features(sdlc_dir=".sdlc"):
     budget = cfg.get("budget") or {}
     verify = cfg.get("verify") or {}
     gate = (cfg.get("gates") or {}).get("hard_plan_gate") or {}
+    par = cfg.get("parallel") or {}
     rows = [
         ("model+effort auto-selection",
          "AUTO (per-goal `resolve` + per-step `resolve-step`)"
@@ -122,6 +123,10 @@ def features(sdlc_dir=".sdlc"):
          ("ON — %d entr%s in .sdlc/ledger/entries/" % (_ledger_entries(base), "y" if _ledger_entries(base) == 1 else "ies"))
          if (cfg.get("ledger") or {}).get("enabled") is True else "off (nothing is recorded)",
          'config: "ledger": {"enabled": true}'),
+        ("slice parallelism",
+         ("ON — up to %s concurrent slices per wave" % par.get("max_concurrent", 3))
+         if par.get("enabled") is True else "off (a goal's slices run one after another)",
+         'config: "parallel": {"enabled": true, "max_concurrent": 3}'),
     ]
     return rows
 

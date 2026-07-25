@@ -45,6 +45,19 @@ Then repeat until the helper says stop:
    - a failure you cannot resolve — record THIS one as `failed` (see step 6): parked means
      "needs a human decision", failed means "needs a fix"; the queue separates the two.
 
+   **3a. Independent slices? Run the wave — don't queue it.** Once the plan exists, if it declared
+   slices in `.sdlc/plans/<goal-stem>.slices.json`, compute the dispatch plan:
+   `python3 "${CLAUDE_SKILL_DIR}/scripts/slices.py" plan .sdlc "$goal"`. It groups the runnable slices
+   into **waves** — each wave mutually non-conflicting by declared files, capped at
+   `parallel.max_concurrent`. Do ONE wave at a time: dispatch each of its slices as a **subagent**
+   (fresh context), with **`isolation: worktree`** for every slice the plan marks that way, so two of
+   them cannot fight over one checkout. Land the wave, then re-run `plan` for the next. **Never**
+   dispatch a slice with an unattended `claude -p` — uncapped spend, and a second worker on one
+   `.sdlc` breaks every state file here. A slice the plan marks `dispatch: session` will not fit one
+   subagent's context: **print its exact `claude --worktree <name>` line and let the human start it**
+   — never start it yourself. No manifest, or `parallel.enabled` off → run the goal as one unit,
+   exactly as before.
+
    **Blocked on someone else's AREA? Hand it off before you park.** A dependency in code another
    person owns is not a decision for the user — parking it silently tells nobody and the work
    stalls until a human happens to notice. Instead:

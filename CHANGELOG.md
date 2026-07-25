@@ -2,11 +2,12 @@
 
 ## 0.7.0 — the coordination release
 
-The theme: LoopSmith stops being a single-player autopilot. A team running it against one
-repo now leaves a shared, attributed record of what each loop did; a blocker in someone
-else's code is handed to that person instead of parked into silence; and the hand-off
-actually reaches them. Everything ships opt-in and default-OFF — with no `ledger` block in
-config.json the loop behaves exactly as 0.6.0 did.
+The theme: LoopSmith stops being a single-player autopilot, and stops running one thing at
+a time. A team running it against one repo now leaves a shared, attributed record of what
+each loop did; a blocker in someone else's code is handed to that person instead of parked
+into silence; the hand-off actually reaches them; and a goal's independent slices run
+together instead of queueing. Everything ships opt-in and default-OFF — with no `ledger`
+and no `parallel` block in config.json the loop behaves exactly as 0.6.0 did.
 
 ### Coordination
 - **Team ledger** (`ledger: {"enabled": true}`, default OFF): a committed, append-only record of what
@@ -44,6 +45,32 @@ config.json the loop behaves exactly as 0.6.0 did.
   stays exactly the goal the caller parses. Deduped twice: a per-author cursor, plus a
   `kind:issue:state` signature so a colleague's rebase can't replay old mentions (a state *change*
   still fires).
+
+### Parallelism
+- **Slice-level parallelism** (`parallel: {"enabled": false, "max_concurrent": 3}`, default OFF): a
+  goal's independent slices now run concurrently instead of queueing behind each other. Declare them
+  beside the plan in `.sdlc/plans/<goal-stem>.slices.json` — `{id, title, needs, files, size, status}`,
+  everything but `id` optional — and `slices.py plan` renders a dispatch plan: the runnable frontier
+  packed into **waves** of mutually non-conflicting slices, capped at `max_concurrent`, widest fan-out
+  first so a wave is never spent on leaves while the critical path waits. Deterministic by
+  construction, so the plan is reviewable before anything is dispatched; `slices.py check` reports
+  unknown dependencies, duplicate ids, and **cycles by their members** (you cannot pick which edge to
+  break without the names). **Conflict is decided from DECLARED files only** — `fnmatch` both
+  directions plus a literal-prefix check, so `engine/**` and `engine/graph.py` are one blast radius —
+  and a slice that declares **no** files conflicts with everything and runs alone: an unknown radius
+  is not something you may parallelise, and one lost edit costs more than one extra wave. Each slice
+  that declares files is dispatched with `isolation: worktree`, so concurrent siblings cannot stomp
+  each other's half-finished edits.
+
+  The boundary is drawn where the host's guarantees end. A python script cannot spawn a subagent, so
+  `slices.py` **computes and advises** and `/sdlc-loop`'s prose dispatches — one subagent per slice,
+  one wave at a time. The desktop app's "chips" mechanism is app-internal and **not a public API for
+  plugins**, so nothing here is built on it: a slice marked `"size": "large"` (too big for one
+  subagent's context) is dispatched as `session` and the plan **prints the exact
+  `claude --worktree <goal-stem>-<slice-id>` line for a human to start**. The loop never shells out to
+  an unattended `claude -p` — uncapped spend, and a second worker on one `.sdlc` breaks every state
+  file in the kit. `/sdlc-doctor` reports the flag. Absent config, or no manifest, and every goal runs
+  as one unit exactly as before.
 
 ### Backlog routing
 - **Per-owner discovery scope**: `discovery.github.assignee` (e.g. `"@me"`) makes the loop pick only

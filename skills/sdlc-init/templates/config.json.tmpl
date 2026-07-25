@@ -44,6 +44,8 @@
     "watch": { "interval_seconds": 900 },
     "_watch": "How often watch.sh pulls the ops branch and refreshes .sdlc/state/inbox.md, which `loop.py next` surfaces between goals."
   },
+  "parallel": { "enabled": false, "max_concurrent": 3 },
+  "_parallel": "Run a goal's independent slices concurrently, from the declared manifest .sdlc/plans/<goal-stem>.slices.json: `slices.py plan` groups non-conflicting slices into waves (a slice that declares no files conflicts with everything and runs alone) and the loop dispatches each wave as subagents. Off by default; absent, every goal runs as one unit exactly as before.",
 
   "companions": "auto",
   "model_selection": "off",
