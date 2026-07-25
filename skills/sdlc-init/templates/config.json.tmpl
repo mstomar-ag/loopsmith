@@ -9,6 +9,8 @@
       "goal_label": "sdlc:goal",
       "in_progress_label": "sdlc:in-progress",
       "parked_label": "sdlc:parked",
+      "assignee": "",
+      "_assignee": "Optional. Set to \"@me\" (or a username) to only pick issues assigned to that user, so several people can run the loop on one shared board without grabbing each other's work. Empty = no filter (every open goal issue is in scope).",
       "project": {
         "enabled": true,
         "_comment": "Mirror issue status onto a GitHub Projects v2 board (needs the gh `project` scope). Flow: Backlog -> In Progress -> QC -> Done, Blocked for parked. Fail-open: if it can't, the loop still runs on issues+labels.",

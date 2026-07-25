@@ -357,6 +357,12 @@ So your **review queue = open issues labelled `sdlc:parked`**, and **done = clos
 first run. **Setup:** run `gh auth login` once; leave `repo` empty to auto-detect from the git remote,
 or set it to `owner/name`.
 
+**Sharing one board across a team.** Set `discovery.github.assignee` to `"@me"` (or a username) so
+each person's loop only picks issues **assigned to them** — several people can run the loop on the same
+board without two loops grabbing the same issue. Assign work with GitHub's normal assignee field; the
+Projects card sync still shows the whole team's backlog. Empty (the default) = one shared queue, every
+open `sdlc:goal` issue in scope.
+
 #### Projects v2 board
 
 With `discovery.github.project.enabled` (on by default for new repos), the loop also drives a **GitHub

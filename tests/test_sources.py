@@ -85,6 +85,23 @@ def test_github_custom_labels_respected():
     assert any("--label goal" in " ".join(c) for c in run.calls)      # custom goal label used in the query
 
 
+def test_github_next_pending_no_assignee_filter_by_default():
+    src = _mod("sources")
+    run = _recording_runner({"list": "[]"})
+    gh = src.GitHubSource({"discovery": {"source": "github"}}, run=run)
+    gh.next_pending()
+    assert not any("--assignee" in " ".join(c) for c in run.calls)   # absent config -> no filter (byte-compatible)
+
+
+def test_github_next_pending_assignee_filter_when_configured():
+    src = _mod("sources")
+    run = _recording_runner({"list": "[]"})
+    cfg = {"discovery": {"source": "github", "github": {"assignee": "@me"}}}
+    gh = src.GitHubSource(cfg, run=run)
+    gh.next_pending()
+    assert any("--assignee @me" in " ".join(c) for c in run.calls)   # scopes the discovery queue to one owner
+
+
 def test_github_next_pending_tolerates_null_or_nameless_labels():
     src = _mod("sources")
     issues = [{"number": 5, "labels": None}, {"number": 6, "labels": [{}]}]  # null + a label with no name
